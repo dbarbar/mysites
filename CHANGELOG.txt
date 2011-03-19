@@ -1,4 +1,124 @@
-// $Id: CHANGELOG.txt,v 1.173.2.8 2007/07/26 19:16:45 drumm Exp $
+// $Id: CHANGELOG.txt,v 1.173.2.50 2010/08/11 20:37:49 drumm Exp $
+
+Drupal 5.23, 2010-08-11
+-----------------------
+- Fixed security issues (File download access bypass, Comment unpublishing
+  bypass), see SA-CORE-2010-002.
+
+Drupal 5.22, 2010-03-03
+-----------------------
+- Fixed security issues (Open redirection, Locale module cross site scripting,
+  Blocked user session regeneration), see SA-CORE-2010-001.
+
+Drupal 5.21, 2009-12-16
+-----------------------
+- Fixed a security issue (Cross site scripting), see SA-CORE-2009-009.
+- Fixed a variety of small bugs.
+
+Drupal 5.20, 2009-09-16
+-----------------------
+- Avoid security problems resulting from writing Drupal 6-style menu
+  declarations.
+- Fixed security issues (session fixation), see SA-CORE-2009-008.
+- Fixed a variety of small bugs.
+
+Drupal 5.19, 2009-07-01
+-----------------------
+- Fixed security issues (Cross site scripting and Password leakage in URL), see
+  SA-CORE-2009-007.          
+- Fixed a variety of small bugs.
+
+Drupal 5.18, 2009-05-13
+-----------------------
+- Fixed security issues (Cross site scripting), see SA-CORE-2009-006.
+- Fixed a variety of small bugs.
+
+Drupal 5.17, 2009-04-29
+-----------------------
+- Fixed security issues (Cross site scripting and limited information
+  disclosure) see SA-CORE-2009-005.
+- Fixed a variety of small bugs.
+
+Drupal 5.16, 2009-02-25
+-----------------------
+- Fixed a security issue, (Local file inclusion on Windows), see SA-CORE-2009-004.
+- Fixed a variety of small bugs.
+
+Drupal 5.15, 2009-01-14
+-----------------------
+- Fixed security issues, (Hardening against SQL injection), see
+  SA-CORE-2009-001
+- Fixed HTTP_HOST checking to work again with HTTP 1.0 clients and basic shell
+  scripts.
+- Fixed a variety of small bugs.
+
+Drupal 5.14, 2008-12-11
+-----------------------
+- removed a previous change incompatible with PHP 5.1.x and lower.
+
+Drupal 5.13, 2008-12-10
+-----------------------
+- fixed a variety of small bugs.
+- fixed security issues, (Cross site request forgery and Cross site scripting), see SA-2008-073
+- updated robots.txt and .htaccess to match current file use.
+
+Drupal 5.12, 2008-10-22
+-----------------------
+- fixed security issues, (File inclusion), see SA-2008-067
+
+Drupal 5.11, 2008-10-08
+-----------------------
+- fixed a variety of small bugs.
+- fixed security issues, (File upload access bypass, Access rules bypass,
+  BlogAPI access bypass, Node validation bypass), see SA-2008-060
+
+Drupal 5.10, 2008-08-13
+-----------------------
+- fixed a variety of small bugs.
+- fixed security issues, (Cross site scripting, Arbitrary file uploads via
+  BlogAPI and Cross site request forgery), see SA-2008-047
+
+Drupal 5.9, 2008-07-23
+----------------------
+- fixed a variety of small bugs.
+- fixed security issues, (Session fixation), see SA-2008-046
+
+Drupal 5.8, 2008-07-09
+----------------------
+- fixed a variety of small bugs.
+- fixed security issues, (Cross site scripting, cross site request forgery, and
+  session fixation), see SA-2008-044
+
+Drupal 5.7, 2008-01-28
+----------------------
+- fixed the input format configuration page.
+- fixed a variety of small bugs.
+
+Drupal 5.6, 2008-01-10
+----------------------
+- fixed a variety of small bugs.
+- fixed a security issue (Cross site request forgery), see SA-2008-005
+- fixed a security issue (Cross site scripting, UTF8), see SA-2008-006
+- fixed a security issue (Cross site scripting, register_globals), see SA-2008-007
+
+Drupal 5.5, 2007-12-06
+----------------------
+- fixed missing missing brackets in a query in the user module.
+- fixed taxonomy feed bug introduced by SA-2007-031
+
+Drupal 5.4, 2007-12-05
+----------------------
+- fixed a variety of small bugs.
+- fixed a security issue (SQL injection), see SA-2007-031
+
+Drupal 5.3, 2007-10-17
+----------------------
+- fixed a variety of small bugs.
+- fixed a security issue (HTTP response splitting), see SA-2007-024
+- fixed a security issue (Arbitrary code execution via installer), see SA-2007-025
+- fixed a security issue (Cross site scripting via uploads), see SA-2007-026
+- fixed a security issue (User deletion cross site request forgery), see SA-2007-029
+- fixed a security issue (API handling of unpublished comment), see SA-2007-030
 
 Drupal 5.2, 2007-07-26
 ----------------------
@@ -88,6 +208,26 @@ Drupal 5.0, 2007-01-15
     * split up and removed drupal.css.
     * added nested lists generation.
     * added a self-clearing block class.
+
+Drupal 4.7.11, 2008-01-10
+-------------------------
+- fixed a security issue (Cross site request forgery), see SA-2008-005
+- fixed a security issue (Cross site scripting, UTF8), see SA-2008-006
+- fixed a security issue (Cross site scripting, register_globals), see SA-2008-007
+
+Drupal 4.7.10, 2007-12-06
+-------------------------
+- fixed taxonomy feed bug introduced by SA-2007-031
+
+Drupal 4.7.9, 2007-12-05
+------------------------
+- fixed a security issue (SQL injection), see SA-2007-031
+
+Drupal 4.7.8, 2007-10-17
+------------------------
+- fixed a security issue (HTTP response splitting), see SA-2007-024
+- fixed a security issue (Cross site scripting via uploads), see SA-2007-026
+- fixed a security issue (API handling of unpublished comment), see SA-2007-030
 
 Drupal 4.7.7, 2007-07-26
 ------------------------

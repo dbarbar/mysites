@@ -1,5 +1,5 @@
 <?php
-// $Id: install.php,v 1.34.2.2 2007/07/12 06:53:03 drumm Exp $
+// $Id: install.php,v 1.34.2.5 2008/07/09 21:48:41 drumm Exp $
 
 require_once './includes/install.inc';
 
@@ -15,9 +15,10 @@ require_once './includes/install.inc';
  *   The installation phase we should proceed to.
  */
 function install_main() {
-  global $profile, $install_locale;
   require_once './includes/bootstrap.inc';
   drupal_bootstrap(DRUPAL_BOOTSTRAP_CONFIGURATION);
+  // This must go after drupal_bootstrap(), which unsets globals!
+  global $profile, $install_locale;
   require_once './modules/system/system.install';
   require_once './includes/file.inc';
 
@@ -152,6 +153,15 @@ function install_change_settings($profile = 'default', $install_locale = '') {
   include_once './includes/form.inc';
   drupal_maintenance_theme();
 
+  // Don't fill in placeholders
+  if ($db_url == 'mysql://username:password@localhost/databasename') {
+    $db_user = $db_pass = $db_path = '';
+  }
+  elseif (!empty($db_url)) {
+    // Do not install over a configured settings.php.
+    install_already_done_error();
+  }
+
   // The existing database settings are not working, so we need write access
   // to settings.php to change them.
   if (!drupal_verify_install_file($settings_file, FILE_EXIST|FILE_READABLE|FILE_WRITABLE)) {
@@ -162,10 +172,6 @@ function install_change_settings($profile = 'default', $install_locale = '') {
     exit;
   }
 
-  // Don't fill in placeholders
-  if ($db_url == 'mysql://username:password@localhost/databasename') {
-    $db_user = $db_pass = $db_path = '';
-  }
   $output = drupal_get_form('install_settings_form', $profile, $install_locale, $settings_file, $db_url, $db_type, $db_prefix, $db_user, $db_pass, $db_host, $db_port, $db_path);
   drupal_set_title(st('Database configuration'));
   print theme('install_page', $output);
@@ -506,7 +512,7 @@ function install_already_done_error() {
 
   drupal_maintenance_theme();
   drupal_set_title(st('Drupal already installed'));
-  print theme('install_page', st('<ul><li>To start over, you must empty your existing database.</li><li>To install to a different database, edit the appropriate <em>settings.php</em> file in the <em>sites</em> folder.</li><li>To upgrade an existing installation, proceed to the <a href="@base-url/update.php">update script</a>.</li></ul>', array('@base-url' => $base_url)));
+  print theme('install_page', st('<ul><li>To start over, you must empty your existing database and replace the appropriate <em>settings.php</em> with an unmodified copy.</li><li>To install to a different database, edit the appropriate <em>settings.php</em> file in the <em>sites</em> folder.</li><li>To upgrade an existing installation, proceed to the <a href="@base-url/update.php">update script</a>.</li></ul>', array('@base-url' => $base_url)));
   exit;
 }
 

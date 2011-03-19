@@ -1,5 +1,5 @@
 <?php
-// $Id: menu.module,v 1.100.2.1 2007/07/26 19:16:45 drumm Exp $
+// $Id: menu.module,v 1.100.2.4 2009/02/26 06:56:26 drumm Exp $
 
 /**
  * @file
@@ -176,7 +176,7 @@ function menu_form_alter($form_id, &$form) {
   if (isset($form['type']) && $form['type']['#value'] .'_node_form' == $form_id) {
     $item = array();
     if ($form['nid']['#value'] > 0) {
-      $item = db_fetch_array(db_query("SELECT * FROM {menu} WHERE path = 'node/%d'", $form['nid']['#value']));
+      $item = db_fetch_array(db_query("SELECT * FROM {menu} WHERE path = 'node/%d' ORDER BY mid", $form['nid']['#value']));
       if (isset($form['#post']['menu']) && is_array($form['#post']['menu'])) {
         $item = !is_array($item) ? $form['#post']['menu'] : (($form['#post']['op'] == t('Preview')) ? array_merge($item, $form['#post']['menu']) : array_merge($form['#post']['menu'], $item));
       }
@@ -357,6 +357,7 @@ function menu_edit_item_form($type, $mid = 0) {
     '#title' => t('Description'),
     '#default_value' => $item['description'],
     '#description' => t('The description displayed when hovering over a menu item.'),
+    '#maxlength' => 255,
   );
 
   if ($item['type'] & MENU_CREATED_BY_ADMIN) {
@@ -395,8 +396,9 @@ function menu_edit_item_form($type, $mid = 0) {
     '#description' => t('Optional. In the menu, the heavier items will sink and the lighter items will be positioned nearer the top.'),
   );
 
-  // Always enable menu items (but not menus) when editing them.
-  if (!($item['type'] & MENU_IS_ROOT)) {
+  // Always enable menu items (but not menus) when editing them, unless already
+  // conditionally visible.
+  if (!($item['type'] & (MENU_IS_ROOT | MENU_VISIBLE_IF_HAS_CHILDREN))) {
     $item['type'] |= MENU_VISIBLE_IN_TREE | MENU_VISIBLE_IN_BREADCRUMB;
   }
 

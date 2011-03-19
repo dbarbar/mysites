@@ -1,5 +1,5 @@
 <?php
-// $Id: comment.module,v 1.520.2.6 2007/07/26 19:16:45 drumm Exp $
+// $Id: comment.module,v 1.520.2.15 2010/08/11 20:37:49 drumm Exp $
 
 /**
  * @file
@@ -260,7 +260,7 @@ function comment_get_recent($number = 10) {
   if (!empty($nids)) {
     // From among the comments on the nodes selected in the first query,
     // find the $number most recent comments.
-    $result = db_query_range('SELECT c.nid, c.subject, c.cid, c.timestamp FROM {comments} c INNER JOIN {node} n ON n.nid = c.nid WHERE c.nid IN ('. implode(',', $nids) .') AND n.status = 1 AND c.status = %d ORDER BY c.timestamp DESC', COMMENT_PUBLISHED, 0, $number);
+    $result = db_query_range('SELECT c.nid, c.subject, c.cid, c.timestamp FROM {comments} c INNER JOIN {node} n ON n.nid = c.nid WHERE c.nid IN ('. implode(',', $nids) .') AND n.status = 1 AND c.status = %d ORDER BY c.cid DESC', COMMENT_PUBLISHED, 0, $number);
     while ($comment = db_fetch_object($result)) {
       $comments[] = $comment;
     }
@@ -575,7 +575,7 @@ function comment_access($op, $comment) {
   global $user;
 
   if ($op == 'edit') {
-    return ($user->uid && $user->uid == $comment->uid && comment_num_replies($comment->cid) == 0) || user_access('administer comments');
+    return ($user->uid && $user->uid == $comment->uid && comment_num_replies($comment->cid) == 0 && $comment->status == COMMENT_PUBLISHED) || user_access('administer comments');
   }
 }
 
@@ -723,7 +723,7 @@ function comment_save($edit) {
         }
 
         // Add the comment to database.
-        $status = user_access('post comments without approval') ? COMMENT_PUBLISHED : COMMENT_NOT_PUBLISHED;
+        $edit['status'] = user_access('post comments without approval') ? COMMENT_PUBLISHED : COMMENT_NOT_PUBLISHED;
         $roles = variable_get('comment_roles', array());
         $score = 0;
 
@@ -784,7 +784,7 @@ function comment_save($edit) {
           $edit['name'] = $user->name;
         }
 
-        db_query("INSERT INTO {comments} (cid, nid, pid, uid, subject, comment, format, hostname, timestamp, status, score, users, thread, name, mail, homepage) VALUES (%d, %d, %d, %d, '%s', '%s', %d, '%s', %d, %d, %d, '%s', '%s', '%s', '%s', '%s')", $edit['cid'], $edit['nid'], $edit['pid'], $edit['uid'], $edit['subject'], $edit['comment'], $edit['format'], $_SERVER['REMOTE_ADDR'], $edit['timestamp'], $status, $score, $users, $thread, $edit['name'], $edit['mail'], $edit['homepage']);
+        db_query("INSERT INTO {comments} (cid, nid, pid, uid, subject, comment, format, hostname, timestamp, status, score, users, thread, name, mail, homepage) VALUES (%d, %d, %d, %d, '%s', '%s', %d, '%s', %d, %d, %d, '%s', '%s', '%s', '%s', '%s')", $edit['cid'], $edit['nid'], $edit['pid'], $edit['uid'], $edit['subject'], $edit['comment'], $edit['format'], $_SERVER['REMOTE_ADDR'], $edit['timestamp'], $edit['status'], $score, $users, $thread, $edit['name'], $edit['mail'], $edit['homepage']);
 
         _comment_update_node_statistics($edit['nid']);
 
@@ -800,7 +800,7 @@ function comment_save($edit) {
 
       // Explain the approval queue if necessary, and then
       // redirect the user to the node he's commenting on.
-      if ($status == COMMENT_NOT_PUBLISHED) {
+      if ($edit['status'] == COMMENT_NOT_PUBLISHED) {
         drupal_set_message(t('Your comment has been queued for moderation by site administrators and will be published after approval.'));
       }
       return $edit['cid'];
@@ -981,7 +981,7 @@ function comment_render($node, $cid = 0) {
 
       if ($order == COMMENT_ORDER_NEWEST_FIRST) {
         if ($mode == COMMENT_MODE_FLAT_COLLAPSED || $mode == COMMENT_MODE_FLAT_EXPANDED) {
-          $query .= ' ORDER BY c.timestamp DESC';
+          $query .= ' ORDER BY c.cid DESC';
         }
         else {
           $query .= ' ORDER BY c.thread DESC';
@@ -989,7 +989,7 @@ function comment_render($node, $cid = 0) {
       }
       else if ($order == COMMENT_ORDER_OLDEST_FIRST) {
         if ($mode == COMMENT_MODE_FLAT_COLLAPSED || $mode == COMMENT_MODE_FLAT_EXPANDED) {
-          $query .= ' ORDER BY c.timestamp';
+          $query .= ' ORDER BY c.cid';
         }
         else {
 
@@ -1055,8 +1055,9 @@ function comment_render($node, $cid = 0) {
       }
     }
 
-    // If enabled, show new comment form.
-    if (user_access('post comments') && node_comment_mode($nid) == COMMENT_NODE_READ_WRITE && (variable_get('comment_form_location', COMMENT_FORM_SEPARATE_PAGE) == COMMENT_FORM_BELOW)) {
+    // If enabled, show new comment form if it's not already being displayed.
+    $reply = arg(0) == 'comment' && arg(1) == 'reply';
+    if (user_access('post comments') && node_comment_mode($nid) == COMMENT_NODE_READ_WRITE && (variable_get('comment_form_location', COMMENT_FORM_SEPARATE_PAGE) == COMMENT_FORM_BELOW) && !$reply) {
       $output .= comment_form_box(array('nid' => $nid), t('Post new comment'));
     }
 
@@ -1231,7 +1232,7 @@ function comment_admin_overview_submit($form_id, $form_values) {
     }
     cache_clear_all();
     drupal_set_message(t('The update has been performed.'));
-    drupal_goto('admin/content/comment');
+    return 'admin/content/comment';
   }
 }
 
@@ -1565,10 +1566,6 @@ function comment_form($edit, $title = NULL) {
     $form['#after_build'] = array('comment_form_add_preview');
   }
 
-  if ($_REQUEST['destination']) {
-    $form['#attributes']['destination'] = $_REQUEST['destination'];
-  }
-
   if (empty($edit['cid']) && empty($edit['pid'])) {
     $form['#action'] = url('comment/reply/'. $edit['nid']);
   }
@@ -1627,7 +1624,8 @@ function comment_form_add_preview($form, $edit) {
     $output .= theme('comment_view', $comment);
   }
   else {
-    $form['#suffix'] = node_view(node_load($edit['nid']));
+    $suffix = empty($form['#suffix']) ? '' : $form['#suffix'];
+    $form['#suffix'] = $suffix . node_view(node_load($edit['nid']));
     $edit['pid'] = 0;
   }
 
@@ -1658,7 +1656,7 @@ function _comment_form_submit($form_values) {
     // 2) Strip out all HTML tags
     // 3) Convert entities back to plain-text.
     // Note: format is checked by check_markup().
-    $form_values['subject'] = trim(truncate_utf8(decode_entities(strip_tags(check_markup($form_values['comment'], $form_values['format']))), 29, TRUE));
+    $form_values['subject'] = truncate_utf8(trim(decode_entities(strip_tags(check_markup($form_values['comment'], $form_values['format'])))), 29, TRUE);
     // Edge cases where the comment body is populated only by HTML tags will
     // require a default subject.
     if ($form_values['subject'] == '') {
@@ -1811,23 +1809,33 @@ function theme_comment_thread_expanded($comment) {
 
 function theme_comment_post_forbidden($nid) {
   global $user;
-  if ($user->uid) {
-    return t("you can't post comments");
-  }
-  else {
-    // we cannot use drupal_get_destination() because these links sometimes appear on /node and taxo listing pages
-    if (variable_get('comment_form_location', COMMENT_FORM_SEPARATE_PAGE) == COMMENT_FORM_SEPARATE_PAGE) {
-      $destination = "destination=". drupal_urlencode("comment/reply/$nid#comment-form");
-    }
-    else {
-      $destination = "destination=". drupal_urlencode("node/$nid#comment-form");
+  static $authenticated_post_comments;
+
+  if (!$user->uid) {
+    if (!isset($authenticated_post_comments)) {
+      // We only output any link if we are certain, that users get permission
+      // to post comments by logging in. We also locally cache this information.
+      $authenticated_post_comments = array_key_exists(DRUPAL_AUTHENTICATED_RID, user_roles(TRUE, 'post comments') + user_roles(TRUE, 'post comments without approval'));
     }
 
-    if (variable_get('user_register', 1)) {
-      return t('<a href="@login">Login</a> or <a href="@register">register</a> to post comments', array('@login' => url('user/login', $destination), '@register' => url('user/register', $destination)));
-    }
-    else {
-      return t('<a href="@login">Login</a> to post comments', array('@login' => url('user/login', $destination)));
+    if ($authenticated_post_comments) {
+      // We cannot use drupal_get_destination() because these links
+      // sometimes appear on /node and taxonomy listing pages.
+      if (variable_get('comment_form_location', COMMENT_FORM_SEPARATE_PAGE) == COMMENT_FORM_SEPARATE_PAGE) {
+        $destination = 'destination='. drupal_urlencode("comment/reply/$nid#comment-form");
+      }
+      else {
+        $destination = 'destination='. drupal_urlencode("node/$nid#comment-form");
+      }
+
+      if (variable_get('user_register', 1)) {
+        // Users can register themselves.
+        return t('<a href="@login">Login</a> or <a href="@register">register</a> to post comments', array('@login' => url('user/login', $destination), '@register' => url('user/register', $destination)));
+      }
+      else {
+        // Only admins can add new users, no public registration.
+        return t('<a href="@login">Login</a> to post comments', array('@login' => url('user/login', $destination)));
+      }
     }
   }
 }

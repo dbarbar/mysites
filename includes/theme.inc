@@ -1,5 +1,5 @@
 <?php
-// $Id: theme.inc,v 1.337.2.2 2007/05/31 05:52:42 drumm Exp $
+// $Id: theme.inc,v 1.337.2.9 2009/05/13 19:41:56 drumm Exp $
 
 /**
  * @file
@@ -8,7 +8,7 @@
  * The theme system allows for nearly all output of the Drupal system to be
  * customized by user themes.
  *
- * @see <a href="http://drupal.org/node/253">Theme system</a>
+ * @see <a href="http://drupal.org/node/171179">Theme guide</a>
  * @see themeable
  */
 
@@ -42,7 +42,8 @@ function init_theme() {
 
   // Only select the user selected theme if it is available in the
   // list of enabled themes.
-  $theme = $user->theme && $themes[$user->theme]->status ? $user->theme : variable_get('theme_default', 'garland');
+  $theme = !empty($user->theme) && !empty($themes[$user->theme]->status) ? $user->theme : variable_get('theme_default', 'garland');
+
 
   // Allow modules to override the present theme... only select custom theme
   // if it is available in the list of installed themes.
@@ -167,7 +168,12 @@ function theme() {
     $functions[$function] = theme_get_function($function);
   }
   if ($functions[$function]) {
-    return call_user_func_array($functions[$function], $args);
+    $output = call_user_func_array($functions[$function], $args);
+    // Add final markup to the full page.
+    if ($function == 'page' || $function == 'book_export_html') {
+      $output = drupal_final_markup($output);
+    }
+    return $output;
   }
 }
 
@@ -544,16 +550,14 @@ function theme_links($links, $attributes = array('class' => 'links')) {
     $i = 1;
 
     foreach ($links as $key => $link) {
-      $class = '';
+      $class = $key;
 
       // Automatically add a class to each link and also to each LI
       if (isset($link['attributes']) && isset($link['attributes']['class'])) {
         $link['attributes']['class'] .= ' ' . $key;
-        $class = $key;
       }
       else {
         $link['attributes']['class'] = $key;
-        $class = $key;
       }
 
       // Add first and last classes to the list of links to help out themers.
@@ -564,7 +568,7 @@ function theme_links($links, $attributes = array('class' => 'links')) {
       if ($i == $num_links) {
         $extra_class .= 'last ';
       }
-      $output .= '<li class="'. $extra_class . $class .'">';
+      $output .= '<li '. drupal_attributes(array('class' => $extra_class . $class)) .'>';
 
       // Is the title HTML?
       $html = isset($link['html']) && $link['html'];
@@ -765,17 +769,20 @@ function theme_table($header, $rows, $attributes = array(), $caption = NULL) {
   // Format the table header:
   if (count($header)) {
     $ts = tablesort_init($header);
-    $output .= ' <thead><tr>';
+    // HTML requires that the thead tag has tr tags in it follwed by tbody
+    // tags. Using ternary operator to check and see if we have any rows.
+    $output .= (count($rows) ? ' <thead><tr>' : ' <tr>');
     foreach ($header as $cell) {
       $cell = tablesort_header($cell, $header, $ts);
       $output .= _theme_table_cell($cell, TRUE);
     }
-    $output .= " </tr></thead>\n";
+    // Using ternary operator to close the tags based on whether or not there are rows
+    $output .= (count($rows) ? " </tr></thead>\n" : "</tr>\n");
   }
 
   // Format the table rows:
-  $output .= "<tbody>\n";
   if (count($rows)) {
+    $output .= "<tbody>\n";
     $flip = array('even' => 'odd', 'odd' => 'even');
     $class = 'even';
     foreach ($rows as $number => $row) {
@@ -814,9 +821,10 @@ function theme_table($header, $rows, $attributes = array(), $caption = NULL) {
       }
       $output .= " </tr>\n";
     }
+    $output .= "</tbody>\n";
   }
 
-  $output .= "</tbody></table>\n";
+  $output .= "</table>\n";
   return $output;
 }
 
@@ -920,10 +928,10 @@ function theme_mark($type = MARK_NEW) {
  *   All other elements are treated as attributes of the list item element.
  * @param $title
  *   The title of the list.
- * @param $attributes
- *   The attributes applied to the list element.
  * @param $type
  *   The type of list to return (e.g. "ul", "ol")
+ * @param $attributes
+ *   The attributes applied to the list element.
  * @return
  *   A string containing the list output.
  */

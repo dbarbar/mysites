@@ -1,5 +1,5 @@
 <?php
-// $Id: form.inc,v 1.174.2.11 2007/07/26 19:16:45 drumm Exp $
+// $Id: form.inc,v 1.174.2.17 2009/02/26 05:50:33 drumm Exp $
 
 /**
  * @defgroup form Form generation
@@ -13,17 +13,18 @@
  * The drupal_get_form() function handles retrieving, processing, and
  * displaying a rendered HTML form for modules automatically. For example:
  *
+ * @code
  * // Display the user registration form.
  * $output = drupal_get_form('user_register');
+ * @endcode
  *
  * Forms can also be built and submitted programmatically without any user input
  * using the drupal_execute() function.
  *
- *
  * For information on the format of the structured arrays used to define forms,
  * and more detailed explanations of the Form API workflow, see the
- * @link http://api.drupal.org/api/HEAD/file/developer/topics/forms_api_reference.html reference @endlink
- * and the @link http://api.drupal.org/api/HEAD/file/developer/topics/forms_api.html quickstart guide. @endlink
+ * @link http://api.drupal.org/api/file/developer/topics/forms_api_reference.html/5 reference @endlink
+ * and the @link http://api.drupal.org/api/file/developer/topics/forms_api.html/5 quickstart guide. @endlink
  */
 
 /**
@@ -529,10 +530,11 @@ function _form_validate($elements, $form_id = NULL) {
   /* Validate the current input */
   if (!isset($elements['#validated']) || !$elements['#validated']) {
     if (isset($elements['#needs_validation'])) {
-      // An empty textfield returns '' so we use empty(). An empty checkbox
-      // and a textfield could return '0' and empty('0') returns TRUE so we
-      // need a special check for the '0' string.
-      if ($elements['#required'] && empty($elements['#value']) && $elements['#value'] !== '0') {
+      // Make sure a value is passed when the field is required.
+      // A simple call to empty() will not cut it here as some fields, like
+      // checkboxes, can return a valid value of '0'. Instead, check the
+      // length if it's a string, and the item count if it's an array.
+      if ($elements['#required'] && (!count($elements['#value']) || (is_string($elements['#value']) && strlen(trim($elements['#value'])) == 0))) {
         form_error($elements, t('!name field is required.', array('!name' => $elements['#title'])));
       }
 
@@ -1105,7 +1107,7 @@ function theme_password_confirm($element) {
   return theme('form_element', $element, $element['#children']);
 }
 
-/*
+/**
  * Expand a password_confirm field into two text boxes.
  */
 function expand_password_confirm($element) {
@@ -1263,7 +1265,19 @@ function expand_radios($element) {
   if (count($element['#options']) > 0) {
     foreach ($element['#options'] as $key => $choice) {
       if (!isset($element[$key])) {
-        $element[$key] = array('#type' => 'radio', '#title' => $choice, '#return_value' => check_plain($key), '#default_value' => $element['#default_value'], '#attributes' => $element['#attributes'], '#parents' => $element['#parents'], '#spawned' => TRUE);
+        // Generate the parents as the autogenerator does, so we will have a
+        // unique id for each radio button.
+        $parents_for_id = array_merge($element['#parents'], array($key));
+        $element[$key] = array(
+          '#type' => 'radio',
+          '#title' => $choice,
+          '#return_value' => check_plain($key),
+          '#default_value' => $element['#default_value'],
+          '#attributes' => $element['#attributes'],
+          '#id' => form_clean_id('edit-'. implode('-', $parents_for_id)),
+          '#parents' => $element['#parents'],
+          '#spawned' => TRUE
+        );
       }
     }
   }
@@ -1429,7 +1443,7 @@ function theme_textfield($element) {
 function theme_form($element) {
   // Anonymous div to satisfy XHTML compliance.
   $action = $element['#action'] ? 'action="' . check_url($element['#action']) . '" ' : '';
-  return '<form '. $action . ' method="'. $element['#method'] .'" '. 'id="'. $element['#id'] .'"'. drupal_attributes($element['#attributes']) .">\n<div>". $element['#children'] ."\n</div></form>\n";
+  return '<form '. $action .' accept-charset="UTF-8" method="'. $element['#method'] .'" '. 'id="'. $element['#id'] .'"'. drupal_attributes($element['#attributes']) .">\n<div>". $element['#children'] ."\n</div></form>\n";
 }
 
 /**
@@ -1536,7 +1550,11 @@ function theme_file($element) {
  *   A string representing the form element.
  */
 function theme_form_element($element, $value) {
-  $output  = '<div class="form-item">'."\n";
+  $output  = '<div class="form-item"';
+  if (!empty($element['#id'])) {
+    $output .= ' id="'. $element['#id'] .'-wrapper"';
+  }
+  $output .= ">\n";
   $required = !empty($element['#required']) ? '<span class="form-required" title="'. t('This field is required.') .'">*</span>' : '';
 
   if (!empty($element['#title'])) {

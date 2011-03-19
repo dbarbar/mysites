@@ -1,5 +1,5 @@
 <?php
-// $Id: common.inc,v 1.611.2.9 2007/07/26 19:16:45 drumm Exp $
+// $Id: common.inc,v 1.611.2.26 2010/03/04 00:16:02 drumm Exp $
 
 /**
  * @file
@@ -152,6 +152,15 @@ function drupal_get_headers() {
 }
 
 /**
+ * Make any final alterations to the rendered xhtml.
+ */
+function drupal_final_markup($content) {
+  // Make sure that the charset is always specified as the first element of the
+  // head region to prevent encoding-based attacks.
+  return preg_replace('/<head[^>]*>/i', "\$0\n<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />", $content, 1);
+}
+
+/**
  * Add a feed URL for the current page.
  *
  * @param $url
@@ -267,9 +276,8 @@ function drupal_get_destination() {
  * 'user login'-block in a sidebar. The function drupal_get_destination()
  * can be used to help set the destination URL.
  *
- * It is advised to use drupal_goto() instead of PHP's header(), because
- * drupal_goto() will append the user's session ID to the URI when PHP is
- * compiled with "--enable-trans-sid".
+ * Drupal will ensure that messages set by drupal_set_message() and other
+ * session data are written to the database before the user is redirected.
  *
  * This function ends the request; use it rather than a print theme('page')
  * statement in your menu callback.
@@ -294,17 +302,34 @@ function drupal_get_destination() {
  * @see drupal_get_destination()
  */
 function drupal_goto($path = '', $query = NULL, $fragment = NULL, $http_response_code = 302) {
+
+  $destination = FALSE;
   if (isset($_REQUEST['destination'])) {
-    extract(parse_url(urldecode($_REQUEST['destination'])));
+    $destination = $_REQUEST['destination'];
   }
   else if (isset($_REQUEST['edit']['destination'])) {
-    extract(parse_url(urldecode($_REQUEST['edit']['destination'])));
+    $destination = $_REQUEST['edit']['destination'];
+  }
+
+  if ($destination) {
+    // Do not redirect to an absolute URL originating from user input.
+    $colonpos = strpos($destination, ':');
+    $absolute = ($colonpos !== FALSE && !preg_match('![/?#]!', substr($destination, 0, $colonpos)));
+    if (!$absolute) {
+      extract(parse_url(urldecode($destination)));
+    }
   }
 
   $url = url($path, $query, $fragment, TRUE);
+  // Remove newlines from the URL to avoid header injection attacks.
+  $url = str_replace(array("\n", "\r"), '', $url);
 
   // Before the redirect, allow modules to react to the end of the page request.
   module_invoke_all('exit', $url);
+
+  // Even though session_write_close() is registered as a shutdown function, we
+  // need all session data written to the database before redirecting.
+  session_write_close();
 
   header('Location: '. $url, TRUE, $http_response_code);
 
@@ -347,8 +372,10 @@ function drupal_not_found() {
     menu_set_active_item('');
   }
 
-  if (empty($return)) {
+  if (empty($return) || $return == MENU_NOT_FOUND || $return == MENU_ACCESS_DENIED) {
     drupal_set_title(t('Page not found'));
+    menu_set_active_item('');
+    $return = '';
   }
   // To conserve CPU and bandwidth, omit the blocks
   print theme('page', $return, FALSE);
@@ -361,7 +388,7 @@ function drupal_access_denied() {
   drupal_set_header('HTTP/1.1 403 Forbidden');
   watchdog('access denied', check_plain($_GET['q']), WATCHDOG_WARNING);
 
-// Keep old path for reference
+  // Keep old path for reference
   if (!isset($_REQUEST['destination'])) {
     $_REQUEST['destination'] = $_GET['q'];
   }
@@ -376,8 +403,9 @@ function drupal_access_denied() {
     menu_set_active_item('');
   }
 
-  if (empty($return)) {
+  if (empty($return) || $return == MENU_NOT_FOUND || $return == MENU_ACCESS_DENIED) {
     drupal_set_title(t('Access denied'));
+    menu_set_active_item('');
     $return = t('You are not authorized to access this page.');
   }
   print theme('page', $return);
@@ -410,6 +438,18 @@ function drupal_http_request($url, $headers = array(), $method = 'GET', $data = 
   // Parse the URL, and make sure we can handle the schema.
   $uri = parse_url($url);
 
+  if ($uri == FALSE) {
+    $result->error = 'unable to parse URL';
+    $result->code = -1001;
+    return $result;
+  }
+
+  if (!isset($uri['scheme'])) {
+    $result->error = 'missing schema';
+    $result->code = -1002;
+    return $result;
+  }
+
   switch ($uri['scheme']) {
     case 'http':
       $port = isset($uri['port']) ? $uri['port'] : 80;
@@ -424,6 +464,7 @@ function drupal_http_request($url, $headers = array(), $method = 'GET', $data = 
       break;
     default:
       $result->error = 'invalid schema '. $uri['scheme'];
+      $result->code = -1003;
       return $result;
   }
 
@@ -449,6 +490,11 @@ function drupal_http_request($url, $headers = array(), $method = 'GET', $data = 
     'User-Agent' => 'User-Agent: Drupal (+http://drupal.org/)',
     'Content-Length' => 'Content-Length: '. strlen($data)
   );
+
+  // If the server url has a user then attempt to use basic authentication
+  if (isset($uri['user'])) {
+    $defaults['Authorization'] = 'Authorization: Basic '. base64_encode($uri['user'] . (!empty($uri['pass']) ? ":". $uri['pass'] : ''));
+  }
 
   foreach ($headers as $header => $value) {
     $defaults[$header] = $header .': '. $value;
@@ -544,7 +590,7 @@ function error_handler($errno, $message, $filename, $line) {
   }
 
   if ($errno & (E_ALL ^ E_NOTICE)) {
-    $types = array(1 => 'error', 2 => 'warning', 4 => 'parse error', 8 => 'notice', 16 => 'core error', 32 => 'core warning', 64 => 'compile error', 128 => 'compile warning', 256 => 'user error', 512 => 'user warning', 1024 => 'user notice', 2048 => 'strict warning');
+    $types = array(1 => 'error', 2 => 'warning', 4 => 'parse error', 8 => 'notice', 16 => 'core error', 32 => 'core warning', 64 => 'compile error', 128 => 'compile warning', 256 => 'user error', 512 => 'user warning', 1024 => 'user notice', 2048 => 'strict warning', 4096 => 'recoverable fatal error');
     $entry = $types[$errno] .': '. $message .' in '. $filename .' on line '. $line .'.';
 
     // Force display of error messages in update.php
@@ -629,8 +675,8 @@ function locale_initialize() {
 /**
  * Translate strings to the current locale.
  *
- * All human-readable text that will be displayed somewhere within a page should be
- * run through the t() function.
+ * Human-readable text that will be displayed somewhere within a page should
+ * be run through the t() function.
  *
  * Examples:
  * @code
@@ -666,27 +712,27 @@ function locale_initialize() {
  *     $message[] = t("If you don't want to receive such e-mails, you can change your settings at !url.", array('!url' => url("user/$account->uid", NULL, NULL, TRUE)));
  *   @endcode
  *
- * - @variable, which indicates that the text should be run through check_plain,
- *   to strip out HTML characters. Use this for any output that's displayed within
- *   a Drupal page.
+ * - @variable, which indicates that the text should be run through
+ *   check_plain, to escape HTML characters. Use this for any output that's
+ *   displayed within a Drupal page.
  *   @code
  *     drupal_set_title($title = t("@name's blog", array('@name' => $account->name)));
  *   @endcode
  *
- * - %variable, which indicates that the string should be highlighted with
- *   theme_placeholder() which shows up by default as <em>emphasized</em>.
+ * - %variable, which indicates that the string should be HTML escaped and
+ *   highlighted with theme_placeholder() which shows up by default as
+ *   <em>emphasized</em>.
  *   @code
- *     watchdog('mail', t('%name-from sent %name-to an e-mail.', array('%name-from' => $user->name, '%name-to' => $account->name)));
+ *     $message = t('%name-from sent %name-to an e-mail.', array('%name-from' => $user->name, '%name-to' => $account->name));
  *   @endcode
  *
  * When using t(), try to put entire sentences and strings in one t() call.
  * This makes it easier for translators, as it provides context as to what
- * each word refers to. HTML markup within translation strings is allowed,
- * but should be avoided if possible. The exception is embedded links; link
- * titles add additional context for translators so should be kept in the main
- * string.
+ * each word refers to. HTML markup within translation strings is allowed, but
+ * should be avoided if possible. The exception are embedded links; link
+ * titles add a context for translators, so should be kept in the main string.
  *
- * Here is an example of an incorrect use if t():
+ * Here is an example of incorrect usage of t():
  * @code
  *   $output .= t('<p>Go to the @contact-page.</p>', array('@contact-page' => l(t('contact page'), 'contact')));
  * @endcode
@@ -696,7 +742,7 @@ function locale_initialize() {
  *   $output .= '<p>'. t('Go to the <a href="@contact-page">contact page</a>.', array('@contact-page' => url('contact'))) .'</p>';
  * @endcode
  *
- * Also avoid escaping quotation marks wherever possible.
+ * Avoid escaping quotation marks wherever possible.
  *
  * Incorrect:
  * @code
@@ -707,6 +753,101 @@ function locale_initialize() {
  * @code
  *   $output .= t("Don't click me.");
  * @endcode
+ *
+ * Because t() is designed for handling code-based strings, in almost all
+ * cases, the actual string and not a variable must be passed through t().
+ *
+ * Extraction of translations is done based on the strings contained in t()
+ * calls. If a variable is passed through t(), the content of the variable
+ * cannot be extracted from the file for translation.
+ *
+ * Incorrect:
+ * @code
+ *   $message = 'An error occurred.';
+ *   drupal_set_message(t($message), 'error');
+ *   $output .= t($message);
+ * @endcode
+ *
+ * Correct:
+ * @code
+ *   $message = t('An error occurred.');
+ *   drupal_set_message($message, 'error');
+ *   $output .= $message;
+ * @endcode
+ *
+ * The only case in which variables can be passed safely through t() is when
+ * code-based versions of the same strings will be passed through t() (or
+ * otherwise extracted) elsewhere.
+ *
+ * In some cases, modules may include strings in code that can't use t()
+ * calls. For example, a module may use an external PHP application that
+ * produces strings that are loaded into variables in Drupal for output.
+ * In these cases, module authors may include a dummy file that passes the
+ * relevant strings through t(). This approach will allow the strings to be
+ * extracted.
+ *
+ * Sample external (non-Drupal) code:
+ * @code
+ *   class Time {
+ *     public $yesterday = 'Yesterday';
+ *     public $today = 'Today';
+ *     public $tomorrow = 'Tomorrow';
+ *   }
+ * @endcode
+ *
+ * Sample dummy file.
+ * @code
+ *   // Dummy function included in example.potx.inc.
+ *   function example_potx() {
+ *     $strings = array(
+ *       t('Yesterday'),
+ *       t('Today'),
+ *       t('Tomorrow'),
+ *     );
+ *     // No return value needed, since this is a dummy function.
+ *   }
+ * @endcode
+ *
+ * Having passed strings through t() in a dummy function, it is then
+ * okay to pass variables through t().
+ *
+ * Correct (if a dummy file was used):
+ * @code
+ *   $time = new Time();
+ *   $output .= t($time->today);
+ * @endcode
+ *
+ * However tempting it is, custom data from user input or other non-code
+ * sources should not be passed through t(). Doing so leads to the following
+ * problems and errors:
+ *  - The t() system doesn't support updates to existing strings. When user
+ *    data is updated, the next time it's passed through t() a new record is
+ *    created instead of an update. The database bloats over time and any
+ *    existing translations are orphaned with each update.
+ *  - The t() system assumes any data it receives is in English. User data may
+ *    be in another language, producing translation errors.
+ *  - The "Built-in interface" text group in the locale system is used to
+ *    produce translations for storage in .po files. When non-code strings are
+ *    passed through t(), they are added to this text group, which is rendered
+ *    inaccurate since it is a mix of actual interface strings and various user
+ *    input strings of uncertain origin.
+ *
+ * Incorrect:
+ * @code
+ *   $item = item_load();
+ *   $output .= check_plain(t($item['title']));
+ * @endcode
+ *
+ * Instead, translation of these data can be done through the locale system,
+ * either directly or through helper functions provided by contributed
+ * modules.
+ * @see hook_locale()
+ *
+ * During installation, st() is used in place of t(). Code that may be called
+ * during installation or during normal operation should use the get_t()
+ * helper function.
+ * @see st()
+ * @see get_t()
  *
  * @param $string
  *   A string containing the English string to translate.
@@ -780,7 +921,7 @@ function valid_email_address($mail) {
  *
  * This function should only be used on actual URLs. It should not be used for
  * Drupal menu paths, which can contain arbitrary characters.
- *
+ * Valid values per RFC 3986.
  * @param $url
  *   The URL to verify.
  * @param $absolute
@@ -789,12 +930,26 @@ function valid_email_address($mail) {
  *   TRUE if the URL is in a valid format.
  */
 function valid_url($url, $absolute = FALSE) {
-  $allowed_characters = '[a-z0-9\/:_\-_\.\?\$,;~=#&%\+]';
   if ($absolute) {
-    return preg_match("/^(http|https|ftp):\/\/". $allowed_characters ."+$/i", $url);
+    return (bool)preg_match("
+      /^                                                      # Start at the beginning of the text
+      (?:ftp|https?):\/\/                                     # Look for ftp, http, or https schemes
+      (?:                                                     # Userinfo (optional) which is typically
+        (?:(?:[\w\.\-\+!$&'\(\)*\+,;=]|%[0-9a-f]{2})+:)*      # a username or a username and password
+        (?:[\w\.\-\+%!$&'\(\)*\+,;=]|%[0-9a-f]{2})+@          # combination
+      )?
+      (?:
+        (?:[a-z0-9\-\.]|%[0-9a-f]{2})+                        # A domain name or a IPv4 address
+        |(?:\[(?:[0-9a-f]{0,4}:)*(?:[0-9a-f]{0,4})\])         # or a well formed IPv6 address
+      )
+      (?::[0-9]+)?                                            # Server port number (optional)
+      (?:[\/|\?]
+        (?:[\w#!:\.\?\+=&@$'~*,;\/\(\)\[\]\-]|%[0-9a-f]{2})   # The path and query (optional)
+      *)?
+    $/xi", $url);
   }
   else {
-    return preg_match("/^". $allowed_characters ."+$/i", $url);
+    return (bool)preg_match("/^(?:[\w#!:\.\?\+=&@$'~*,;\/\(\)\[\]\-]|%[0-9a-f]{2})+$/i", $url);
   }
 }
 
@@ -1262,7 +1417,7 @@ function drupal_attributes($attributes = array()) {
  *   an HTML string containing a link to the given path.
  */
 function l($text, $path, $attributes = array(), $query = NULL, $fragment = NULL, $absolute = FALSE, $html = FALSE) {
-  if ($path == $_GET['q']) {
+  if (($path == $_GET['q']) || ($path == '<front>' && drupal_is_front_page())) {
     if (isset($attributes['class'])) {
       $attributes['class'] .= ' active';
     }
@@ -1511,6 +1666,8 @@ function drupal_build_css_cache($types, $filename) {
       foreach ($type as $file => $cache) {
         if ($cache) {
           $contents = file_get_contents($file);
+          // Remove multiple charset declarations for standards compliance (and fixing Safari problems)
+          $contents = preg_replace('/^@charset\s+[\'"](\S*)\b[\'"];/i', '', $contents);
           // Return the path to where this CSS file originated from, stripping off the name of the file at the end of the path.
           $path = base_path() . substr($file, 0, strrpos($file, '/')) .'/';
           // Wraps all @import arguments in url().
@@ -1545,6 +1702,8 @@ function drupal_build_css_cache($types, $filename) {
  */
 function drupal_clear_css_cache() {
   file_scan_directory(file_create_path('css'), '.*', array('.', '..', 'CVS'), 'file_delete', TRUE);
+  // Clear the page cache, so cached pages do not reference nonexistent CSS.
+  cache_clear_all();
 }
 
 /**
@@ -1644,10 +1803,10 @@ function _drupal_add_js($data, $type, $scope, $defer, $cache) {
  * are added to the page. Then, all settings are output, followed by 'inline'
  * JavaScript code.
  *
- * @parameter $scope
+ * @param $scope
  *   (optional) The scope for which the JavaScript rules should be returned.
  *   Defaults to 'header'.
- * @parameter $javascript
+ * @param $javascript
  *   (optional) An array with all JavaScript code. Defaults to the default
  *   JavaScript array for the given scope.
  * @return
@@ -1912,7 +2071,7 @@ function page_set_cache() {
  * @param $body
  *   Message to be sent. Drupal will format the correct line endings for you.
  * @param $from
- *   Sets From, Reply-To, Return-Path and Error-To to this value, if given.
+ *   Sets From to this value, if given.
  * @param $headers
  *   Associative array containing the headers to add. This is typically
  *   used to add extra headers (From, Cc, and Bcc).
@@ -1932,10 +2091,10 @@ function drupal_mail($mailkey, $to, $subject, $body, $from = NULL, $headers = ar
   // SMTP server.  Errors-To is redundant, but shouldn't hurt.
   $default_from = variable_get('site_mail', ini_get('sendmail_from'));
   if ($default_from) {
-    $defaults['From'] = $defaults['Reply-To'] = $defaults['Sender'] = $defaults['Return-Path'] = $defaults['Errors-To'] = $default_from;
+    $defaults['From'] = $defaults['Sender'] = $defaults['Return-Path'] = $defaults['Errors-To'] = $default_from;
   }
   if ($from) {
-    $defaults['From'] = $defaults['Reply-To'] = $from;
+    $defaults['From'] = $from;
   }
   $headers = array_merge($defaults, $headers);
   // Custom hook traversal to allow pass by reference
