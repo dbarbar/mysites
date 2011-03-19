@@ -1,8 +1,0 @@
-; $Id: comment_info.info,v 1.1.2.1.2.1 2007/02/23 20:20:50 mfer Exp $
-name = "Comment info"
-description = "Sticky Guest Comment info."
-
-; Information added by drupal.org packaging script on 2007-04-01
-version = "5.x-2.0"
-project = "comment_info"
-
