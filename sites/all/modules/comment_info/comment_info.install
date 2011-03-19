@@ -1,9 +1,0 @@
-<?php
-// $Id: comment_info.install,v 1.1.2.1 2007/02/23 20:20:50 mfer Exp $
-/**
-* Implementation of hook_uninstall().
-*/
-function comment_info_uninstall() {
-  variable_del('comment_info_setting');
-}
-?>
