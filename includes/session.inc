@@ -1,5 +1,5 @@
 <?php
-// $Id: session.inc,v 1.37.2.2 2007/07/26 19:16:45 drumm Exp $
+// $Id: session.inc,v 1.37.2.8 2010/03/04 00:16:02 drumm Exp $
 
 /**
  * @file
@@ -31,8 +31,9 @@ function sess_read($key) {
   // Otherwise, if the session is still active, we have a record of the client's session in the database.
   $user = db_fetch_object(db_query("SELECT u.*, s.* FROM {users} u INNER JOIN {sessions} s ON u.uid = s.uid WHERE s.sid = '%s'", $key));
 
-  // We found the client's session record and they are an authenticated user
-  if ($user && $user->uid > 0) {
+  // We found the client's session record and they are an authenticated,
+  // active user.
+  if ($user && $user->uid > 0 && $user->status == 1) {
     // This is done to unserialize the data member of $user
     $user = drupal_unpack($user);
 
@@ -44,8 +45,9 @@ function sess_read($key) {
       $user->roles[$role->rid] = $role->name;
     }
   }
-  // We didn't find the client's record (session has expired), or they are an anonymous user.
-  else  {
+  // We didn't find the client's record (session has expired), or they are
+  // blocked, or they are an anonymous user.
+  else {
     $session = isset($user->session) ? $user->session : '';
     $user = drupal_anonymous_user($session);
   }
@@ -57,29 +59,25 @@ function sess_write($key, $value) {
   global $user;
 
   // If saving of session data is disabled or if the client doesn't have a session,
-  // and one isn't being created ($value), do nothing.
-  if (!session_save_session() || (empty($_COOKIE[session_name()]) && empty($value))) {
+  // and one isn't being created ($value), do nothing. This keeps crawlers out of
+  // the session table. This reduces memory and server load, and gives more useful
+  // statistics. We can't eliminate anonymous session table rows without breaking
+  // the throttle module and the "Who's Online" block.
+  if (!session_save_session() || ($user->uid == 0 && empty($_COOKIE[session_name()]) && empty($value))) {
     return TRUE;
   }
 
-  $result = db_query("SELECT sid FROM {sessions} WHERE sid = '%s'", $key);
-
-  if (!db_num_rows($result)) {
-    // Only save session data when when the browser sends a cookie. This keeps
-    // crawlers out of session table. This reduces memory and server load,
-    // and gives more useful statistics. We can't eliminate anonymous session
-    // table rows without breaking throttle module and "Who's Online" block.
-    if ($user->uid || $value || count($_COOKIE)) {
-      db_query("INSERT INTO {sessions} (sid, uid, cache, hostname, session, timestamp) VALUES ('%s', %d, %d, '%s', '%s', %d)", $key, $user->uid, $user->cache, $_SERVER["REMOTE_ADDR"], $value, time());
-    }
-  }
-  else {
-    db_query("UPDATE {sessions} SET uid = %d, cache = %d, hostname = '%s', session = '%s', timestamp = %d WHERE sid = '%s'", $user->uid, $user->cache, $_SERVER["REMOTE_ADDR"], $value, time(), $key);
-
+  db_query("UPDATE {sessions} SET uid = %d, cache = %d, hostname = '%s', session = '%s', timestamp = %d WHERE sid = '%s'", $user->uid, isset($user->cache) ? $user->cache : '', $_SERVER["REMOTE_ADDR"], $value, time(), $key);
+  if (db_affected_rows()) {
     // TODO: this can be an expensive query. Perhaps only execute it every x minutes. Requires investigation into cache expiration.
     if ($user->uid) {
       db_query("UPDATE {users} SET access = %d WHERE uid = %d", time(), $user->uid);
     }
+  }
+  else {
+    // If this query fails, another parallel request probably got here first.
+    // In that case, any session data generated in this request is discarded.
+    @db_query("INSERT INTO {sessions} (sid, uid, cache, hostname, session, timestamp) VALUES ('%s', %d, %d, '%s', '%s', %d)", $key, $user->uid, isset($user->cache) ? $user->cache : '', $_SERVER["REMOTE_ADDR"], $value, time());
   }
 
   return TRUE;
@@ -163,8 +161,8 @@ function sess_gc($lifetime) {
  *
  * @param $status
  *   Disables writing of session data when FALSE, (re-)enables writing when TRUE.
- *
- * @return FALSE if writing session data has been disabled. Otherwise, TRUE.
+ * @return
+ *   FALSE if writing session data has been disabled. Otherwise, TRUE.
  */
 function session_save_session($status = NULL) {
   static $save_session = TRUE;

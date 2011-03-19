@@ -1,5 +1,5 @@
 <?php
-// $Id: database.inc,v 1.62.2.4 2007/07/12 06:25:47 drumm Exp $
+// $Id: database.inc,v 1.62.2.6 2008/01/07 00:55:44 drumm Exp $
 
 /**
  * @file
@@ -100,7 +100,7 @@ function db_prefix_tables($sql) {
  */
 function db_set_active($name = 'default') {
   global $db_url, $db_type, $active_db;
-  static $db_conns;
+  static $db_conns, $active_name = FALSE;
 
   if (!isset($db_conns[$name])) {
     // Initiate a new connection, using the named DB URL specified.
@@ -128,11 +128,12 @@ function db_set_active($name = 'default') {
     $db_conns[$name] = db_connect($connect_url);
   }
 
-  $previous_db = $active_db;
+  $previous_name = $active_name;
   // Set the active connection.
+  $active_name = $name;
   $active_db = $db_conns[$name];
 
-  return array_search($previous_db, $db_conns);
+  return $previous_name;
 }
 
 /**
@@ -252,7 +253,7 @@ function _db_rewrite_sql($query = '', $primary_table = 'n', $primary_field = 'ni
  * @param $query
  *   Query to be rewritten.
  * @param $primary_table
- *   Name or alias of the table which has the primary key field for this query. Possible values are: comments, forum, node, menu, term_data, vocabulary.
+ *   Name or alias of the table which has the primary key field for this query. Possible values are: {comments}, {forum}, {node}, {menu}, {term_data}, {vocabulary}.
  * @param $primary_field
  *   Name of the primary field.
  * @param $args

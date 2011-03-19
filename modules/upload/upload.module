@@ -1,5 +1,5 @@
 <?php
-// $Id: upload.module,v 1.148.2.1 2007/03/07 03:27:24 drumm Exp $
+// $Id: upload.module,v 1.148.2.6 2010/08/11 20:37:49 drumm Exp $
 
 /**
  * @file
@@ -117,7 +117,7 @@ function upload_admin_settings_validate($form_id, $form_values) {
   $default_uploadsize = $form_values['upload_uploadsize_default'];
   $default_usersize = $form_values['upload_usersize_default'];
 
-  $exceed_max_msg = t('Your PHP settings limit the maximum file size per upload to %size MB.', array('%size' => file_upload_max_size())).'<br/>';
+  $exceed_max_msg = t('Your PHP settings limit the maximum file size per upload to %size.', array('%size' => format_size(file_upload_max_size()))).'<br/>';
   $more_info = t("Depending on your sever environment, these settings may be changed in the system-wide php.ini file, a php.ini file in your Drupal root directory, in your Drupal site's settings.php file, or in the .htaccess file in your Drupal root directory.");
 
   if (!is_numeric($default_uploadsize) || ($default_uploadsize <= 0)) {
@@ -126,7 +126,7 @@ function upload_admin_settings_validate($form_id, $form_values) {
   if (!is_numeric($default_usersize) || ($default_usersize <= 0)) {
     form_set_error('upload_usersize_default', t('The %role file size limit must be a number and greater than zero.', array('%role' => t('default'))));
   }
-  if ($default_uploadsize > file_upload_max_size()) {
+  if ($default_uploadsize * 1024 * 1024 > file_upload_max_size()) {
    form_set_error('upload_uploadsize_default', $exceed_max_msg . $more_info);
    $more_info = '';
   }
@@ -144,7 +144,7 @@ function upload_admin_settings_validate($form_id, $form_values) {
     if (!is_numeric($usersize) || ($usersize <= 0)) {
       form_set_error('upload_usersize_'. $rid, t('The %role file size limit must be a number and greater than zero.', array('%role' => $role)));
     }
-    if ($uploadsize > file_upload_max_size()) {
+    if ($uploadsize * 1024 * 1024 > file_upload_max_size()) {
      form_set_error('upload_uploadsize_'. $rid, $exceed_max_msg . $more_info);
      $more_info = '';
     }
@@ -158,7 +158,7 @@ function upload_admin_settings_validate($form_id, $form_values) {
  * Menu callback for the upload settings form.
  */
 function upload_admin_settings() {
-  $upload_extensions_default = variable_get('upload_extensions_default', 'jpg jpeg gif png txt html doc xls pdf ppt pps odt ods odp');
+  $upload_extensions_default = variable_get('upload_extensions_default', 'jpg jpeg gif png txt doc xls pdf ppt pps odt ods odp');
   $upload_uploadsize_default = variable_get('upload_uploadsize_default', 1);
   $upload_usersize_default = variable_get('upload_usersize_default', 1);
 
@@ -259,9 +259,15 @@ function upload_download() {
 }
 
 function upload_file_download($file) {
-  $file = file_create_path($file);
-  $result = db_query("SELECT f.* FROM {files} f WHERE filepath = '%s'", $file);
-  if ($file = db_fetch_object($result)) {
+  $filepath = file_create_path($file);
+  $result = db_query("SELECT f.* FROM {files} f WHERE filepath = '%s'", $filepath);
+  while ($file = db_fetch_object($result)) {
+    if ($filepath !== $file->filepath) {
+      // Since some database servers sometimes use a case-insensitive
+      // comparison by default, double check that the filename is an exact
+      // match.
+      continue;
+    }
     if (user_access('view uploaded files')) {
       $node = node_load($file->nid);
       if (node_access('view', $node)) {
@@ -271,13 +277,8 @@ function upload_file_download($file) {
           'Content-Length: '. $file->filesize,
         );
       }
-      else {
-        return -1;
-      }
     }
-    else {
-      return -1;
-    }
+    return -1;
   }
 }
 
@@ -421,7 +422,7 @@ function _upload_validate(&$node) {
           $total_usersize = upload_space_used($user->uid) + $filesize;
           $error = array();
           foreach ($user->roles as $rid => $name) {
-            $extensions = variable_get("upload_extensions_$rid", variable_get('upload_extensions_default', 'jpg jpeg gif png txt html doc xls pdf ppt pps odt ods odp'));
+            $extensions = variable_get("upload_extensions_$rid", variable_get('upload_extensions_default', 'jpg jpeg gif png txt doc xls pdf ppt pps odt ods odp'));
             $uploadsize = variable_get("upload_uploadsize_$rid", variable_get('upload_uploadsize_default', 1)) * 1024 * 1024;
             $usersize = variable_get("upload_usersize_$rid", variable_get('upload_usersize_default', 1)) * 1024 * 1024;
 
@@ -641,7 +642,7 @@ function upload_munge_filename($filename, $extensions = NULL, $alerts = 1) {
     if (!isset($extensions)) {
       $extensions = '';
       foreach ($user->roles as $rid => $name) {
-        $extensions .= ' '. variable_get("upload_extensions_$rid", variable_get('upload_extensions_default', 'jpg jpeg gif png txt html doc xls pdf ppt pps odt ods odp'));
+        $extensions .= ' '. variable_get("upload_extensions_$rid", variable_get('upload_extensions_default', 'jpg jpeg gif png txt doc xls pdf ppt pps odt ods odp'));
       }
 
     }
@@ -864,6 +865,7 @@ function _upload_image($file) {
     if ($width && $height) {
       $result = image_scale($file->filepath, $file->filepath, $width, $height);
       if ($result) {
+        clearstatcache();
         $file->filesize = filesize($file->filepath);
         drupal_set_message(t('The image was resized to fit within the maximum allowed resolution of %resolution pixels.', array('%resolution' => variable_get('upload_max_resolution', 0))));
       }
@@ -877,8 +879,21 @@ function _upload_image($file) {
  * Menu-callback for JavaScript-based uploads.
  */
 function upload_js() {
-  // We only do the upload.module part of the node validation process.
-  $node = (object)$_POST;
+  if (isset($_POST['vid']) && is_numeric($_POST['vid'])) {
+    // Load the node and check the user is allowed to post attachments to it.
+    $node = node_load(array('vid' => $_POST['vid']));
+    if (!$node || !node_access('update', $node) || !variable_get('upload_'. $node->type, TRUE)) {
+      // Setting this error will cause the form to fail validation.
+      form_set_error('form_token', t('Validation error, please try again. If this error persists, please contact the site administrator.'));
+      $output = theme('status_messages');
+      print drupal_to_js(array('status' => TRUE, 'data' => $output));
+      exit();
+    }
+  }
+  else {
+    // This is a new node.
+    $node = new stdClass();
+  }
 
   // Load existing node files.
   $node->files = upload_load($node);

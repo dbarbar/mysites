@@ -1,5 +1,5 @@
 <?php
-// $Id: filter.module,v 1.160.2.2 2007/06/05 07:29:14 drumm Exp $
+// $Id: filter.module,v 1.160.2.14 2009/06/03 17:52:13 drumm Exp $
 
 /**
  * @file
@@ -159,9 +159,9 @@ function filter_filter_tips($delta, $format, $long = FALSE) {
         if ($allowed_html = variable_get("allowed_html_$format", '<a> <em> <strong> <cite> <code> <ul> <ol> <li> <dl> <dt> <dd>')) {
           switch ($long) {
             case 0:
-              return t('Allowed HTML tags') .': '. check_plain($allowed_html);
+              return t('Allowed HTML tags: @tags', array('@tags' => $allowed_html));
             case 1:
-              $output = '<p>'. t('Allowed HTML tags') .': '. check_plain($allowed_html) .'</p>';
+              $output = '<p>'. t('Allowed HTML tags: @tags', array('@tags' => $allowed_html)) .'</p>';
               if (!variable_get("filter_html_help_$format", 1)) {
                 return $output;
               }
@@ -604,12 +604,22 @@ function filter_admin_configure() {
 
   if (!empty($form)) {
     $form = system_settings_form($form);
+    $form['format'] = array('#type' => 'hidden', '#value' => $format);
+    $form['#submit']['system_settings_form_submit'] = array();
+    $form['#submit']['filter_admin_configure_submit'] = array();
   }
   else {
     $form['error'] = array('#value' => t('No settings are available.'));
   }
 
   return $form;
+}
+
+/**
+ * Clear the filter's cache when configuration settings are saved.
+ */
+function filter_admin_configure_submit($form_id, $form_values) {
+  cache_clear_all($form_values['format'] .':', 'cache_filter', TRUE);
 }
 
 /**
@@ -699,13 +709,20 @@ function filter_list_format($format) {
   static $filters = array();
 
   if (!isset($filters[$format])) {
-    $filters[$format] = array();
     $result = db_query("SELECT * FROM {filters} WHERE format = %d ORDER BY weight ASC", $format);
-    while ($filter = db_fetch_object($result)) {
-      $list = module_invoke($filter->module, 'filter', 'list');
-      if (isset($list) && is_array($list) && isset($list[$filter->delta])) {
-        $filter->name = $list[$filter->delta];
-        $filters[$format][$filter->module .'/'. $filter->delta] = $filter;
+    if (db_num_rows($result) == 0 && !db_result(db_query("SELECT 1 FROM {filter_formats} WHERE format = %d", $format))) {
+      // The format has no filters and does not exist, use the default input
+      // format.
+      $filters[$format] = filter_list_format(variable_get('filter_default_format', 1));
+    }
+    else {
+      $filters[$format] = array();
+      while ($filter = db_fetch_object($result)) {
+        $list = module_invoke($filter->module, 'filter', 'list');
+        if (isset($list) && is_array($list) && isset($list[$filter->delta])) {
+          $filter->name = $list[$filter->delta];
+          $filters[$format][$filter->module .'/'. $filter->delta] = $filter;
+        }
       }
     }
   }
@@ -930,13 +947,12 @@ function theme_filter_tips($tips, $long = FALSE, $extra = '') {
         $output .= '<strong>'. $name .'</strong>:<br />';
       }
 
-      $tips = '';
-      foreach ($tiplist as $tip) {
-        $tips .= '<li'. ($long ? ' id="filter-'. str_replace("/", "-", $tip['id']) .'">' : '>') . $tip['tip'] . '</li>';
-      }
-
-      if ($tips) {
-        $output .= "<ul class=\"tips\">$tips</ul>";
+      if (count($tiplist) > 0) {
+        $output .= '<ul class="tips">';
+        foreach ($tiplist as $tip) {
+          $output .= '<li'. ($long ? ' id="filter-'. str_replace("/", "-", $tip['id']) .'">' : '>') . $tip['tip'] .'</li>';
+        }
+        $output .= '</ul>';
       }
 
       if ($multiple) {
@@ -1048,7 +1064,7 @@ function _filter_html_settings($format) {
     '#title' => t('Allowed HTML tags'),
     '#default_value' => variable_get("allowed_html_$format", '<a> <em> <strong> <cite> <code> <ul> <ol> <li> <dl> <dt> <dd>'),
     '#size' => 64,
-    '#maxlength' => 255,
+    '#maxlength' => 1024,
     '#description' => t('If "Strip disallowed tags" is selected, optionally specify tags which should not be stripped. JavaScript event attributes are always stripped.'),
   );
   $form['filter_html']["filter_html_help_$format"] = array(
@@ -1171,13 +1187,13 @@ function _filter_url_trim($text, $length = NULL) {
  */
 function _filter_autop($text) {
   // All block level tags
-  $block = '(?:table|thead|tfoot|caption|colgroup|tbody|tr|td|th|div|dl|dd|dt|ul|ol|li|pre|select|form|blockquote|address|p|h[1-6])';
+  $block = '(?:table|thead|tfoot|caption|colgroup|tbody|tr|td|th|div|dl|dd|dt|ul|ol|li|pre|select|form|blockquote|address|p|h[1-6]|hr)';
 
   // Split at <pre>, <script>, <style> and </pre>, </script>, </style> tags.
   // We don't apply any processing to the contents of these tags to avoid messing
   // up code. We look for matched pairs and allow basic nesting. For example:
   // "processed <pre> ignored <script> ignored </script> ignored </pre> processed"
-  $chunks = preg_split('@(</?(?:pre|script|style)[^>]*>)@i', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
+  $chunks = preg_split('@(</?(?:pre|script|style|object)[^>]*>)@i', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
   // Note: PHP ensures the array consists of alternating delimiters and literals
   // and begins and ends with a literal (inserting NULL as required).
   $ignore = FALSE;
@@ -1234,7 +1250,7 @@ function _filter_autop($text) {
  * for scripts and styles.
  */
 function filter_xss_admin($string) {
-  return filter_xss($string, array('a', 'abbr', 'acronym', 'address', 'b', 'bdo', 'big', 'blockquote', 'br', 'caption', 'cite', 'code', 'col', 'colgroup', 'dd', 'del', 'dfn', 'div', 'dl', 'dt', 'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'img', 'ins', 'kbd', 'li', 'object', 'ol', 'p', 'param', 'pre', 'q', 'samp', 'small', 'span', 'strong', 'sub', 'sup', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'tt', 'ul', 'var'));
+  return filter_xss($string, array('a', 'abbr', 'acronym', 'address', 'b', 'bdo', 'big', 'blockquote', 'br', 'caption', 'cite', 'code', 'col', 'colgroup', 'dd', 'del', 'dfn', 'div', 'dl', 'dt', 'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'img', 'ins', 'kbd', 'li', 'ol', 'p', 'pre', 'q', 'samp', 'small', 'span', 'strong', 'sub', 'sup', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'tt', 'ul', 'var'));
 }
 
 /**
@@ -1259,6 +1275,11 @@ function filter_xss_admin($string) {
  *   The format to use.
  */
 function filter_xss($string, $allowed_tags = array('a', 'em', 'strong', 'cite', 'code', 'ul', 'ol', 'li', 'dl', 'dt', 'dd')) {
+  // Only operate on valid UTF-8 strings. This is necessary to prevent cross
+  // site scripting issues on Internet Explorer 6.
+  if (!drupal_validate_utf8($string)) {
+    return '';
+  }
   // Store the input format
   _filter_xss_split($allowed_tags, TRUE);
   // Remove NUL characters (ignored by some browsers)
@@ -1280,7 +1301,7 @@ function filter_xss($string, $allowed_tags = array('a', 'em', 'strong', 'cite', 
     (
     <(?=[^a-zA-Z!/])  # a lone <
     |                 # or
-    <[^>]*.(>|$)      # a string that starts with a <, up until the > or the end of the string
+    <[^>]*(>|$)       # a string that starts with a <, up until the > or the end of the string
     |                 # or
     >                 # just a >
     )%x', '_filter_xss_split', $string);

@@ -1,4 +1,4 @@
-// $Id: drupal.js,v 1.29.2.1 2007/07/15 23:07:06 drumm Exp $
+// $Id: drupal.js,v 1.29.2.3 2009/02/26 06:46:48 drumm Exp $
 
 var Drupal = Drupal || {};
 
@@ -12,8 +12,8 @@ Drupal.jsEnabled = document.getElementsByTagName && document.createElement && do
  */
 Drupal.extend = function(obj) {
   for (var i in obj) {
-    if (this[i]) {
-      Drupal.extend.apply(this[i], [obj[i]]);
+    if (this[i] && (typeof(this[i]) == 'function' || typeof(this[i]) == 'object')) {
+   	  Drupal.extend.apply(this[i], [obj[i]]);
     }
     else {
       this[i] = obj[i];
@@ -202,5 +202,5 @@ Drupal.encodeURIComponent = function (item, uri) {
 
 // Global Killswitch on the <html> element
 if (Drupal.jsEnabled) {
-  document.documentElement.className = 'js';
+  $(document.documentElement).addClass('js');
 }

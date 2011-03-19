@@ -1,5 +1,5 @@
 <?php
-// $Id: menu.inc,v 1.146.2.1 2007/06/17 01:50:50 drumm Exp $
+// $Id: menu.inc,v 1.146.2.3 2009/07/10 05:56:51 drumm Exp $
 
 /**
  * @file
@@ -975,7 +975,7 @@ function _menu_get_active_trail_in_submenu($pid) {
     $count = 0;
     while ($path && !$count) {
       foreach ($menu['items'] as $key => $item) {
-        if (isset($item['path']) && $item['path'] == $path) {
+        if (isset($item['path']) && ($item['path'] == $path || ($item['path'] == '<front>' && drupal_is_front_page()))) {
           $trails[$count] = array();
           $mid = $key;
           while ($mid && $menu['items'][$mid]) {
@@ -1055,6 +1055,10 @@ function _menu_build() {
   $temp_mid = -1;
 
   foreach ($menu_item_list as $item) {
+    // Protect against D6 style access
+    if (isset($item['access']) && is_array($item['access']) && count($item['access']) == 1 && isset($item['access'][0]) && is_string($item['access'][0])) {
+      $item['access'] = FALSE;
+    }
     if (!isset($item['path'])) {
       $item['path'] = '';
     }
@@ -1225,6 +1229,10 @@ function _menu_append_contextual_items() {
   $new_items = array();
 
   foreach ($menu_item_list as $item) {
+    // Protect against D6 style access
+    if (isset($item['access']) && is_array($item['access']) && count($item['access']) == 1 && isset($item['access'][0]) && is_string($item['access'][0])) {
+      $item['access'] = FALSE;
+    }
     if (isset($item['callback'])) {
       $_menu['callbacks'][$item['path']] = array('callback' => $item['callback']);
       if (isset($item['callback arguments'])) {

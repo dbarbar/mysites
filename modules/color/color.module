@@ -1,22 +1,40 @@
 <?php
-// $Id: color.module,v 1.13.2.2 2007/07/09 05:02:32 drumm Exp $
+// $Id: color.module,v 1.13.2.6 2008/12/21 02:56:30 drumm Exp $
+
+/**
+ * Implementation of hook_help
+ */
+function color_help($section) {
+  switch ($section) {
+    case 'admin/help#color':
+      $output = '<p>'. t('Color module allows a site administrator to quickly and easily change the color scheme of the entire site. In order for color module to work however, a theme must be specifically designed to use the color changing features. The default theme, Garland, (as well as its fixed width counterpart, Minnelli) was designed to take advantage of these features. With color module, you can easily change the color of links, backgrounds, text, and more depending on which color module enabled theme you are using. Color module requires your <a href="@url">file download method</a> to be set to public.', array('@url' => url('admin/settings/file-system'))) .'</p>';
+      $output .= '<p>'. t("It is important to remember that color module saves a modified copy of the theme's style.css file in the files directory, and includes it after the theme's original style.css. This means that if you make any manual changes to your theme's style.css file, you must save your color settings again, even if they haven't changed. This causes the color module generated version of style.css in the files directory to be recreated using the new version of the original file.") .'</p>';
+      return $output;
+  }
+}
 
 /**
  * Implementation of hook_form_alter().
  */
 function color_form_alter($form_id, &$form) {
   // Insert the color changer into the theme settings page.
-  // TODO: Last condition in the following if disables color changer when private files are used this should be solved in a different way. See issue #92059.
-  if ($form_id == 'system_theme_settings' && color_get_info(arg(4)) && function_exists('gd_info') && variable_get('file_downloads', FILE_DOWNLOADS_PUBLIC) == FILE_DOWNLOADS_PUBLIC) {
-    $form['color'] = array(
-      '#type' => 'fieldset',
-      '#title' => t('Color scheme'),
-      '#weight' => -1,
-      '#attributes' => array('id' => 'color_scheme_form'),
-      '#theme' => 'color_scheme_form',
-    );
-    $form['color'] += color_scheme_form(arg(4));
-    $form['#submit']['color_scheme_form_submit'] = array();
+  if ($form_id == 'system_theme_settings' && color_get_info(arg(4)) && function_exists('gd_info')) {
+    if (variable_get('file_downloads', FILE_DOWNLOADS_PUBLIC) != FILE_DOWNLOADS_PUBLIC) {
+      // Disables the color changer when the private download method is used.
+      // TODO: This should be solved in a different way. See issue #181003.
+      drupal_set_message(t('The color picker only works if the <a href="@url">download method</a> is set to public.', array('@url' => url('admin/settings/file-system'))));
+    }
+    else {
+      $form['color'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Color scheme'),
+        '#weight' => -1,
+        '#attributes' => array('id' => 'color_scheme_form'),
+        '#theme' => 'color_scheme_form',
+      );
+      $form['color'] += color_scheme_form(arg(4));
+      $form['#submit']['color_scheme_form_submit'] = array();
+    }
   }
 
   // Use the generated screenshot in the theme list
@@ -253,8 +271,10 @@ function color_scheme_form_submit($form_id, $values) {
     $paths['files'][] = $paths['target'] . $base;
   }
 
-  // Render new images
-  _color_render_images($theme, $info, $paths, $palette);
+  // Render new images, if base image exists
+  if ($info['base_image']) {
+    _color_render_images($theme, $info, $paths, $palette);
+  }
 
   // Rewrite stylesheet
   _color_rewrite_stylesheet($theme, $info, $paths, $palette);
@@ -373,7 +393,7 @@ function _color_render_images($theme, &$info, &$paths, $palette) {
   // Render gradient.
   for ($y = 0; $y < $info['gradient'][3]; ++$y) {
     $color = _color_blend($target, $palette['top'], $palette['bottom'], $y / ($info['gradient'][3] - 1));
-    imagefilledrectangle($target, $info['gradient'][0], $info['gradient'][1] + $y, $info['gradient'][2], $info['gradient'][1] + $y + 1, $color);
+    imagefilledrectangle($target, $info['gradient'][0], $info['gradient'][1] + $y, $info['gradient'][0] + $info['gradient'][2], $info['gradient'][1] + $y + 1, $color);
   }
 
   // Blend over template.

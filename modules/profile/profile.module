@@ -1,5 +1,5 @@
 <?php
-// $Id: profile.module,v 1.189.2.8 2007/07/26 19:16:48 drumm Exp $
+// $Id: profile.module,v 1.189.2.11 2009/01/14 05:38:52 drumm Exp $
 
 /**
  * @file
@@ -336,6 +336,14 @@ function profile_field_form_validate($form_id, $form_values) {
   if (db_result(db_query("SELECT fid FROM {profile_fields} WHERE name = '%s'". $query_suffix, $args2))) {
     form_set_error('name', t('The specified name is already in use.'));
   }
+  if ($form_values['visibility'] == PROFILE_HIDDEN) {
+    if ($form_values['required']) {
+      form_set_error('required', t('A hidden field cannot be required.'));
+    }
+    if ($form_values['register']) {
+      form_set_error('register', t('A hidden field cannot be set to visible on the user registration form.'));
+    }
+  }
 }
 
 /**
@@ -670,7 +678,7 @@ function profile_form_profile($edit, $user, $category, $register = FALSE) {
         break;
       case 'selection':
         $options = $field->required ? array() : array('--');
-        $lines = split("[,\n\r]", $field->options);
+        $lines = split("[\n\r]", $field->options);
         foreach ($lines as $line) {
           if ($line = trim($line)) {
             $options[$line] = $line;
@@ -742,7 +750,15 @@ function profile_validate_profile($edit, $category) {
 }
 
 function profile_categories() {
-  $result = db_query("SELECT DISTINCT(category) FROM {profile_fields}");
+  // Hide hidden profile fields from users that don't have permission to administer users.
+  // For these users, categories with only hidden profile fields will not be returned.
+  if (user_access('administer users')) {
+    $result = db_query("SELECT DISTINCT(category) FROM {profile_fields}");
+  }
+  else {
+    $result = db_query("SELECT DISTINCT(category) FROM {profile_fields} WHERE visibility <> %d", PROFILE_HIDDEN);
+  }
+
   while ($category = db_fetch_object($result)) {
     $data[] = array('name' => $category->category, 'title' => $category->category, 'weight' => 3);
   }

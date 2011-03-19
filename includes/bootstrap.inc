@@ -1,5 +1,5 @@
 <?php
-// $Id: bootstrap.inc,v 1.145.2.6 2007/07/26 19:16:45 drumm Exp $
+// $Id: bootstrap.inc,v 1.145.2.14 2009/04/30 00:13:48 drumm Exp $
 
 /**
  * @file
@@ -230,6 +230,20 @@ function drupal_unset_globals() {
 }
 
 /**
+ * Validate that a hostname (for example $_SERVER['HTTP_HOST']) is safe.
+ *
+ * As $_SERVER['HTTP_HOST'] is user input, ensure it only contains characters
+ * allowed in hostnames.  See RFC 952 (and RFC 2181). $_SERVER['HTTP_HOST'] is
+ * lowercased.
+ *
+ * @return
+ *  TRUE if only containing valid characters, or FALSE otherwise.
+ */
+function drupal_valid_http_host($host) {
+  return preg_match('/^\[?(?:[a-z0-9-:\]_]+\.?)+$/', $host);
+}
+
+/**
  * Loads the configuration and sets the base URL, cookie domain, and
  * session name correctly.
  */
@@ -239,6 +253,23 @@ function conf_init() {
   // Export the following settings.php variables to the global namespace
   global $db_url, $db_prefix, $cookie_domain, $conf, $installed_profile;
   $conf = array();
+
+  if (isset($_SERVER['HTTP_HOST'])) {
+    // As HTTP_HOST is user input, ensure it only contains characters allowed
+    // in hostnames. See RFC 952 (and RFC 2181).
+    // $_SERVER['HTTP_HOST'] is lowercased here per specifications.
+    $_SERVER['HTTP_HOST'] = strtolower($_SERVER['HTTP_HOST']);
+    if (!drupal_valid_http_host($_SERVER['HTTP_HOST'])) {
+      // HTTP_HOST is invalid, e.g. if containing slashes it may be an attack.
+      header('HTTP/1.1 400 Bad Request');
+      exit;
+    }
+  }
+  else {
+    // Some pre-HTTP/1.1 clients will not send a Host header. Ensure the key is
+    // defined for E_ALL compliance.
+    $_SERVER['HTTP_HOST'] = '';
+  }
 
   include_once './'. conf_path() .'/settings.php';
 
@@ -256,9 +287,7 @@ function conf_init() {
     // Create base URL
     $base_root = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on') ? 'https' : 'http';
 
-    // As $_SERVER['HTTP_HOST'] is user input, ensure it only contains
-    // characters allowed in hostnames.
-    $base_url = $base_root .= '://'. preg_replace('/[^a-z0-9-:._]/i', '', $_SERVER['HTTP_HOST']);
+    $base_url = $base_root .= '://'. $_SERVER['HTTP_HOST'];
 
     // $_SERVER['SCRIPT_NAME'] can, in contrast to $_SERVER['PHP_SELF'], not
     // be modified by a visitor.
@@ -289,6 +318,15 @@ function conf_init() {
     if (!empty($_SERVER['HTTP_HOST'])) {
       $cookie_domain = check_plain($_SERVER['HTTP_HOST']);
     }
+  }
+  // To prevent session cookies from being hijacked, a user can configure the
+  // SSL version of their website to only transfer session cookies via SSL by
+  // using PHP's session.cookie_secure setting. The browser will then use two
+  // separate session cookies for the HTTPS and HTTP versions of the site. So we
+  // must use different session identifiers for HTTPS and HTTP to prevent a
+  // cookie collision.
+  if (ini_get('session.cookie_secure')) {
+    $session_name .= 'SSL';
   }
   // Strip leading periods, www., and port numbers from cookie domain.
   $cookie_domain = ltrim($cookie_domain, '.');
@@ -558,7 +596,7 @@ function drupal_page_cache_header($cache) {
     header('HTTP/1.1 304 Not Modified');
     // All 304 responses must send an etag if the 200 response for the same object contained an etag
     header("Etag: $etag");
-    exit();
+    return;
   }
 
   // Send appropriate response:
@@ -626,9 +664,48 @@ function referer_uri() {
 
 /**
  * Encode special characters in a plain-text string for display as HTML.
+ *
+ * Uses drupal_validate_utf8 to prevent cross site scripting attacks on
+ * Internet Explorer 6.
  */
 function check_plain($text) {
-  return htmlspecialchars($text, ENT_QUOTES);
+  return drupal_validate_utf8($text) ? htmlspecialchars($text, ENT_QUOTES) : '';
+}
+
+/**
+ * Checks whether a string is valid UTF-8.
+ *
+ * All functions designed to filter input should use drupal_validate_utf8
+ * to ensure they operate on valid UTF-8 strings to prevent bypass of the
+ * filter.
+ *
+ * When text containing an invalid UTF-8 lead byte (0xC0 - 0xFF) is presented
+ * as UTF-8 to Internet Explorer 6, the program may misinterpret subsequent
+ * bytes. When these subsequent bytes are HTML control characters such as
+ * quotes or angle brackets, parts of the text that were deemed safe by filters
+ * end up in locations that are potentially unsafe; An onerror attribute that
+ * is outside of a tag, and thus deemed safe by a filter, can be interpreted
+ * by the browser as if it were inside the tag.
+ *
+ * This function exploits preg_match behaviour (since PHP 4.3.5) when used
+ * with the u modifier, as a fast way to find invalid UTF-8. When the matched
+ * string contains an invalid byte sequence, it will fail silently.
+ *
+ * preg_match may not fail on 4 and 5 octet sequences, even though they
+ * are not supported by the specification.
+ *
+ * The specific preg_match behaviour is present since PHP 4.3.5.
+ *
+ * @param $text
+ *   The text to check.
+ * @return
+ *   TRUE if the text is valid UTF-8, FALSE if not.
+ */
+function drupal_validate_utf8($text) {
+  if (strlen($text) == 0) {
+    return TRUE;
+  }
+  return (preg_match('/^./us', $text) == 1);
 }
 
 /**
@@ -648,6 +725,8 @@ function request_uri() {
       $uri = $_SERVER['SCRIPT_NAME'] .'?'. $_SERVER['QUERY_STRING'];
     }
   }
+  // Prevent multiple slashes to avoid cross site requests via the FAPI.
+  $uri = '/'. ltrim($uri, '/');
 
   return $uri;
 }
@@ -818,11 +897,9 @@ function drupal_anonymous_user($session = '') {
 function drupal_bootstrap($phase) {
   static $phases = array(DRUPAL_BOOTSTRAP_CONFIGURATION, DRUPAL_BOOTSTRAP_EARLY_PAGE_CACHE, DRUPAL_BOOTSTRAP_DATABASE, DRUPAL_BOOTSTRAP_ACCESS, DRUPAL_BOOTSTRAP_SESSION, DRUPAL_BOOTSTRAP_LATE_PAGE_CACHE, DRUPAL_BOOTSTRAP_PATH, DRUPAL_BOOTSTRAP_FULL);
 
-  while (!is_null($current_phase = array_shift($phases))) {
+  while (!empty($phases) && $phase >= $phases[0]) {
+    $current_phase = array_shift($phases);
     _drupal_bootstrap($current_phase);
-    if ($phase == $current_phase) {
-      return;
-    }
   }
 }
 
