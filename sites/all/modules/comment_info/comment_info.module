@@ -1,0 +1,108 @@
+<?php
+// $Id: comment_info.module,v 1.1.2.1.2.6 2007/04/01 21:43:16 mfer Exp $
+
+/**
+ * @file
+ * 
+ * This module provides persistant anonymous guest comment info.
+ */
+
+/**
+ * Implementation of hook_help().
+ */
+function comment_info_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      return t('Sticky Guest Comment info.');
+      break;
+  }
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function comment_info_menu($may_cache) {
+  $items = array();
+  if ($may_cache) {
+    $items[] = array(
+      'path' => 'admin/settings/comment_info',
+      'title' => t('Comment Info'),
+      'description' => t('Administer Comment Info Configuration.'),
+      'callback' => 'drupal_get_form',
+      'callback arguments' => array('comment_info_admin_settings'),
+      'access' => user_access('administer site configuration'),
+      'type' => MENU_NORMAL_ITEM,
+    );
+  }
+  return $items;
+}
+
+/**
+ * Helper function generates admin settings page.
+ */
+function comment_info_admin_settings() {
+  $form['comment_info_description'] = array(
+    '#value' => t('The Comment Info module allows anonymous users to save their comment information.  There are two methods for storing the anonymous users information.  The classic way via the users session and using jQuery with cookies.  Using the jQuery method will only work in javascript enabled browsers.  The jQuery method is the only method that works with caching and is therefore the default/only option when caching is enabled.')
+  );
+  
+  $form['comment_info_setting'] = array(
+  '#type' => 'checkbox',
+  '#title' => t('Enable jQuery Comment Info.'),
+  '#default_value' => variable_get('comment_info_setting', 0),
+  );
+  
+  if (variable_get('cache', CACHE_DISABLED) != CACHE_DISABLED) {
+    $form['comment_info_setting']['#default_value'] = 1;
+    $form['comment_info_setting']['#disabled'] = true;
+  }
+  
+  return system_settings_form($form);
+}
+
+/** 
+ * Insert our checkbox, and populate fields.
+ * set validation hook.
+ */
+function comment_info_form_alter($form_id, &$form) { 
+
+  global $user;
+  if ($user->uid || ($form_id != 'comment_form')) {
+    return;
+  }
+  $form['comment_info']['optin'] = array(
+     '#type' => 'checkbox',
+     '#title' => t('Save my Comment Information for next time.'), 
+    );
+  if (variable_get('comment_info_setting', 0) == 1 || variable_get('cache', CACHE_DISABLED) != CACHE_DISABLED) {
+    drupal_add_js(drupal_get_path('module', 'comment_info').'/comment_info.js');
+    $form['comment_info']['optin']['#attributes'] = array('style' => 'display:none;');
+  }
+  
+  else {
+    foreach (array('name','homepage','mail') as $field) {
+      if (is_array($form[$field]) && $_SESSION['comment_info']['optin']) {
+       $form[$field]['#value'] = $_SESSION['comment_info'][$field];
+      }
+    }
+    
+    $form['#validate']['comment_info_validate'] = array();
+
+    $form['comment_info']['optin']['#default_value'] = $_SESSION['comment_info']['optin'];
+  }
+}
+
+/** 
+ * save our data.
+ */
+function comment_info_validate($form_id, $form_values) { 
+
+  if ($form_values['optin']) {
+    foreach (array('name','homepage','mail','optin') as $field) {
+      $_SESSION['comment_info'][$field] = $form_values[$field];
+    }
+  } else {
+    foreach (array('name','homepage','mail','optin') as $field) {
+      unset($_SESSION['comment_info'][$field]);
+    }
+  }
+}

@@ -1,0 +1,158 @@
+<?php
+
+//$Id: customerror.module,v 1.13 2007/01/08 15:31:55 kbahey Exp $
+
+// Copyright 2005 Khalid Baheyeldin http://2bits.com
+
+
+/**
+ * @file
+ * Enables custom 404 (not found) and 403 (access denied) pages in Drupal
+ * with no need for creating real nodes under taxonomies
+ */
+
+function _customerror_enum_errors() {
+  // This is where the error codes and their default descriptions are
+  // stored. Add here as necessary.
+  $errors = array(
+    404 => t('requested page not found'),
+    403 => t('access denied')
+    );
+
+  return $errors;
+}
+
+function _customerror_fetch_error($error_code) {
+  $errors = _customerror_enum_errors();
+
+  $default_desc = t('unknown error: %error_code', array('%error_code' => $error_code));
+
+  $r = $default_desc;
+
+  foreach ($errors as $code => $desc) {
+    if ($error_code == $code) {
+      $r = $desc;
+    }
+  }
+  return $r;
+}
+
+/**
+ * Implementation of hook_help().
+ */
+function customerror_help($section) {
+  switch ($section) {
+    case 'admin/modules#description':
+      $output = t('Enables the creation of custom error pages for 404 and 403 errors.');
+      break;
+    case 'admin/settings/customerr':
+      $output = t('Enables the creation of custom error pages for 404 and 403 errors.');
+      break;
+  }
+  return $output;
+}
+
+function customerror_admin_settings()
+{
+  $form = array(
+    'customerror_form_description' => array(
+      '#type' => 'markup',
+      '#value' => t('Enter the error pages that will be seen by your visitors when they get the respective errors. You can enter any HTML text. You can point the users to the FAQ, inform them that you reorganized the site, ask them to report the error, login or register, ...etc.')
+    )
+  );
+
+  $errors = _customerror_enum_errors();
+  foreach($errors as $error_code => $error_desc) {
+    $form['customerror_' . $error_code . '_title'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Title for %error_code') . $error_code,
+      '#default_value' => variable_get('customerror_' . $error_code . '_title', $error_desc),
+      '#size' => 70,
+      '#maxlength' => 70,
+      '#description' => t('Title of %error_code error page', array('%error_code' => $error_code . ' error page')),
+    );
+    $form['customerror_' . $error_code] = array(
+      '#type' => 'textarea',
+      '#title' => t('Description for ') . $error_code,
+      '#default_value' => variable_get('customerror_' . $error_code, $error_desc),
+      '#rows' => 10,
+      '#description' => t('This text will be displayed if a %error_code (%error_desc) error occurs.', array('%error_code' => $error_code, '%error_desc' => $error_desc)),
+    );
+    $form['customerror_' . $error_code . '_php'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Allow PHP code to be executed for %error_code', array( '%error_code' => $error_code)),
+      '#default_value' => variable_get('customerror_' . $error_code . '_php', FALSE),
+      '#description' => t('This allows you to include PHP code (enclosed in &lt;?php ?&gt; tags) for the %error_code (%error_desc) message. Note that this can be dangerous in some situations. Make sure that you are aware of the implications.', array('%error_code' => $error_code, '%error_desc' => $error_desc)),
+    );
+  }
+
+  return system_settings_form($form);
+}
+
+function customerror_menu($may_cache) {
+  $items = array();
+
+  if ($may_cache) {
+    $items[] = array(
+      'path' => 'admin/settings/customerror',
+      'title' => t('Custom error'),
+      'description' => t('Administer custom error.'),
+      'callback' => 'drupal_get_form',
+      'callback arguments' => array('customerror_admin_settings'),
+      'access' => user_access('administer site configuration'),
+      'type' => MENU_NORMAL_ITEM,
+    );
+    $items[] = array(
+      'title'    => t('customerror'),
+      'path'     => 'customerror',
+      'access'   => TRUE,
+      'callback' => 'customerror_page',
+      'type'     => MENU_CALLBACK,
+      'weight'   => 0 );
+    }
+
+  return $items;
+}
+/**
+ * Implementation of hook_page().
+ */
+function customerror_page() {
+
+  $error_code = arg(1);
+
+  switch($error_code) {
+    case 403:
+    case 404:
+      drupal_set_title(variable_get('customerror_'. $error_code .'_title', _customerror_fetch_error($error_code)));
+      $output = theme('customerror', $error_code, variable_get('customerror_' . $error_code, _customerror_fetch_error($error_code)));
+      $output = (variable_get('customerror_' . $error_code . '_php', FALSE)) ? drupal_eval($output) : $output;
+      break;
+    default:
+      drupal_set_title(t('undefined error: ') . $error_code);
+      $output = _customerror_fetch_error($error_code);
+      break;
+  }
+  return $output;
+}
+
+/**
+ * Themeable function 
+ */
+function theme_customerror($error_code, $content) {
+  return $content;
+}
+
+function customerror_user($op, $edit, $user) {
+  switch($op) {
+    case 'login':
+      // Check if we have a destination saved in the session
+      $destination = $_SESSION['destination'];
+      if ($destination) {
+        // If there is one, then set the REQUEST destination to it
+        $_REQUEST['destination'] = $destination;
+        // And clear the one in the session
+        unset($_SESSION['destination']);
+        // user.module then does a drupal_goto() for us after we return from here
+      }
+  }
+}

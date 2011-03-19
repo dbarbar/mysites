@@ -1,0 +1,11 @@
+--- common.inc	2007-01-29 20:04:16.000000000 -0500
++++ common.inc	2007-01-29 20:03:53.000000000 -0500
+@@ -368,6 +368,8 @@ function drupal_access_denied() {
+     $_REQUEST['destination'] = $_GET['q'];
+   }
+ 
++  $_SESSION['destination'] = $_GET['q'];
++
+   $path = drupal_get_normal_path(variable_get('site_403', ''));
+   if ($path && $path != $_GET['q']) {
+     menu_set_active_item($path);

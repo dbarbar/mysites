@@ -1,0 +1,11 @@
+; $Id: captcha.info,v 1.3.2.2 2007/07/10 22:02:33 robloach Exp $
+name = Captcha
+description = "Base captcha module for adding captcha challenges to registration, comment and contact forms for example."
+package = "Spam control"
+version = "$Name: DRUPAL-5--3-0-rc1 $"
+
+; Information added by drupal.org packaging script on 2007-07-19
+version = "5.x-3.0-rc1"
+project = "captcha"
+datestamp = "1184886303"
+
