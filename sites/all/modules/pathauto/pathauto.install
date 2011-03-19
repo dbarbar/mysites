@@ -1,0 +1,19 @@
+<?php
+// $Id: pathauto.install,v 1.1.2.1 2007/01/17 16:53:41 greggles Exp $
+
+/**
+ *
+ * @file Provides install, updated, and uninstall functions for pathauto.
+ * 
+ */
+
+ 
+ 
+/**
+ * Implementation of hook_uninstall().
+ */
+function pathauto_uninstall() {
+  // Delete all the pathauto variables and then clear the variable cache  
+  db_query("delete from variable where name like 'pathauto_%'");
+  cache_clear_all('variables', 'cache');
+}

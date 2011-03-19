@@ -1,0 +1,46 @@
+$Id: INSTALL.txt,v 1.4 2005/11/21 15:18:56 kbahey Exp $
+
+Requirements:
+-------------
+This module requires drupal 4.5.x or greater.
+
+Installation:
+-------------
+1. Copy the customerror.module to the Drupal modules/ directory.
+
+2. Patching Drupal core for proper redirection
+
+  This step is required if you want an unlogged user to be redirected
+  to the page they are trying to access after they login.
+
+  Copy the patches/common.inc file that corresponds to your Drupal
+  version to includes/common.inc.
+
+  For example, if you are running 4.6.3, then copy common.inc.4.6.3
+  to includes/common.inc
+
+3. Go to administer->modules
+   - Enable the customerror module, click on Save
+
+4. Configure the module:
+   - Go to administer->settings->customerror
+   - Enter any title and description you want for the 404 (not found)
+     and 403 (access denied) pages.
+   - You can use any HTML tags to format the text.
+
+5. Enable the customerror pages.
+   Go to administer->settings
+   - Set "Default 403 (access denied) page:" to "customerror/403" (without
+     the quotes).
+   - Set "Default 404 (not found) page:" to "customerror/404" (without
+     the quotes).
+   - Click Save
+
+6. Test your error pages.
+   - Copy your present admin page url.
+   - Try to go to a non-existent Drupal page on your site.
+   You should see your custom error page for 404 (not found) page.
+
+   - Log out from your site.
+   - Paste the admin page url and try to go there.
+   You should see your custom error page for 403 (access denied) page.
