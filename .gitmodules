@@ -1,0 +1,93 @@
+[submodule "sites/all/themes/contrib/zen"]
+	path = sites/all/themes/contrib/zen
+	url = http://git.drupal.org/project/zen.git
+[submodule "sites/all/themes/contrib/fusion"]
+	path = sites/all/themes/contrib/fusion
+	url = http://git.drupal.org/project/fusion.git
+[submodule "sites/all/themes/contrib/adaptivetheme"]
+	path = sites/all/themes/contrib/adaptivetheme
+	url = http://git.drupal.org/project/adaptivetheme.git
+[submodule "sites/all/themes/contrib/framework"]
+	path = sites/all/themes/contrib/framework
+	url = http://git.drupal.org/project/framework.git
+[submodule "sites/all/themes/contrib/ninesixty"]
+	path = sites/all/themes/contrib/ninesixty
+	url = http://git.drupal.org/project/ninesixty.git
+[submodule "sites/all/themes/contrib/omega"]
+	path = sites/all/themes/contrib/omega
+	url = http://git.drupal.org/project/omega.git
+[submodule "sites/all/modules/contrib/views"]
+	path = sites/all/modules/contrib/views
+	url = http://git.drupal.org/project/views.git
+[submodule "sites/all/modules/contrib/token"]
+	path = sites/all/modules/contrib/token
+	url = http://git.drupal.org/project/token.git
+[submodule "sites/all/modules/contrib/pathauto"]
+	path = sites/all/modules/contrib/pathauto
+	url = http://git.drupal.org/project/pathauto.git
+[submodule "sites/all/modules/contrib/google_analytics"]
+	path = sites/all/modules/contrib/google_analytics
+	url = http://git.drupal.org/project/google_analytics.git
+[submodule "sites/all/modules/contrib/ctools"]
+	path = sites/all/modules/contrib/ctools
+	url = http://git.drupal.org/project/ctools.git
+[submodule "sites/all/modules/contrib/xmlsitemap"]
+	path = sites/all/modules/contrib/xmlsitemap
+	url = http://git.drupal.org/project/xmlsitemap.git
+[submodule "sites/all/modules/contrib/panels"]
+	path = sites/all/modules/contrib/panels
+	url = http://git.drupal.org/project/panels.git
+[submodule "sites/all/modules/contrib/globalredirect"]
+	path = sites/all/modules/contrib/globalredirect
+	url = http://git.drupal.org/project/globalredirect.git
+[submodule "sites/all/modules/contrib/mollom"]
+	path = sites/all/modules/contrib/mollom
+	url = http://git.drupal.org/project/mollom.git
+[submodule "sites/all/modules/contrib/context"]
+	path = sites/all/modules/contrib/context
+	url = http://git.drupal.org/project/context.git
+[submodule "sites/all/modules/contrib/scheduler"]
+	path = sites/all/modules/contrib/scheduler
+	url = http://git.drupal.org/project/scheduler.git
+[submodule "sites/all/modules/contrib/diff"]
+	path = sites/all/modules/contrib/diff
+	url = http://git.drupal.org/project/diff.git
+[submodule "sites/all/modules/contrib/quicktabs"]
+	path = sites/all/modules/contrib/quicktabs
+	url = http://git.drupal.org/project/quicktabs.git
+[submodule "sites/all/modules/contrib/search404"]
+	path = sites/all/modules/contrib/search404
+	url = http://git.drupal.org/project/search404.git
+[submodule "sites/all/modules/contrib/nodequeue"]
+	path = sites/all/modules/contrib/nodequeue
+	url = http://git.drupal.org/project/nodequeue.git
+[submodule "sites/all/modules/contrib/addthis"]
+	path = sites/all/modules/contrib/addthis
+	url = http://git.drupal.org/project/addthis.git
+[submodule "sites/all/modules/contrib/markdown"]
+	path = sites/all/modules/contrib/markdown
+	url = http://git.drupal.org/project/markdown.git
+[submodule "sites/all/modules/contrib/rdf"]
+	path = sites/all/modules/contrib/rdf
+	url = http://git.drupal.org/project/rdf.git
+[submodule "sites/all/modules/contrib/flickr"]
+	path = sites/all/modules/contrib/flickr
+	url = http://git.drupal.org/project/flickr.git
+[submodule "sites/all/modules/contrib/seo_checker"]
+	path = sites/all/modules/contrib/seo_checker
+	url = http://git.drupal.org/project/seo_checker.git
+[submodule "sites/all/modules/contrib/media_flickr"]
+	path = sites/all/modules/contrib/media_flickr
+	url = http://git.drupal.org/project/media_flickr.git
+[submodule "sites/all/modules/contrib/media"]
+	path = sites/all/modules/contrib/media
+	url = http://git.drupal.org/project/media.git
+[submodule "sites/all/modules/contrib/twitter_pull"]
+	path = sites/all/modules/contrib/twitter_pull
+	url = http://git.drupal.org/project/twitter_pull.git
+[submodule "sites/all/modules/contrib/drupad"]
+	path = sites/all/modules/contrib/drupad
+	url = http://git.drupal.org/project/drupad.git
+[submodule "sites/all/modules/contrib/r4032login"]
+	path = sites/all/modules/contrib/r4032login
+	url = http://git.drupal.org/project/r4032login.git
