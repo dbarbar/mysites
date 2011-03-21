@@ -106,3 +106,6 @@
 [submodule "sites/all/modules/contrib/git_deploy"]
 	path = sites/all/modules/contrib/git_deploy
 	url = http://git.drupal.org/project/git_deploy.git
+[submodule "sites/all/modules/contrib/ie6update"]
+	path = sites/all/modules/contrib/ie6update
+	url = http://git.drupal.org/project/ie6update.git
