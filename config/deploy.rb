@@ -17,8 +17,7 @@ set :scm, "git"
 set :repository, "git@github.com:dbarbar/mysites.git"
 
 default_run_options[:pty] = true  # Must be set for the password prompt from git to work
-# set :user, "deployer"  # The server's user for deploys
-# set :scm_passphrase, "p@ssw0rd"  # The deploy user's password
+# run as the user logged in to SSH, including keys
 ssh_options[:forward_agent] = true
 set :branch, "master"
 

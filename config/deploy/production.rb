@@ -3,7 +3,7 @@
 # Set the deployment directory on the target hosts.
 set :deploy_to, "/var/apps/#{application}"
 set :web_path, "/var/www/#{application}"
- 
+
 # The hostnames to deploy to.
 role :web, "5millionthings.com"
  
