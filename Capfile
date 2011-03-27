@@ -41,14 +41,12 @@ namespace :deploy do
   task :post_update_code do
     domains.each do |domain|
       # link settings file
-      run "ln -nfs #{deploy_to}/#{shared_dir}/#{domain}/settings.php #{release_path}/sites/#{domain}/settings.php"
+      run "ln -fs #{deploy_to}/#{shared_dir}/#{domain}/settings.php #{release_path}/sites/#{domain}/settings.php"
       # remove any link or directory that was exported from SCM, and link to remote Drupal filesystem
       static_dirs.each do |dir|
         run "rm -rf #{release_path}/#{dir}"
         run "ln -nfs #{deploy_to}/#{shared_dir}/#{dir} #{release_path}/#{dir}"
       end
-#      sudo "chown #{apache_user} -R #{release_path}/jobs/_cache"
-#      sudo "chown #{apache_user} -R #{release_path}/jobs/uploads"
     end
   end
 
@@ -106,7 +104,7 @@ namespace :deploy do
   end
 
   task :restart do
-    sudo "/sbin/apachectl graceful"
+    sudo "/usr/sbin/apachectl graceful"
   end
 
 end
