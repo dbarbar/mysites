@@ -47,8 +47,6 @@ namespace :deploy do
         run "rm -rf #{release_path}/#{dir}"
         run "ln -nfs #{deploy_to}/#{shared_dir}/#{dir} #{release_path}/#{dir}"
       end
-#      sudo "chown #{apache_user} -R #{release_path}/jobs/_cache"
-#      sudo "chown #{apache_user} -R #{release_path}/jobs/uploads"
     end
   end
 
@@ -106,7 +104,7 @@ namespace :deploy do
   end
 
   task :restart do
-    sudo "/sbin/apachectl graceful"
+    sudo "/usr/sbin/apachectl graceful"
   end
 
 end
