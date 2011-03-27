@@ -4,7 +4,7 @@
 set :application, "drupal"
 
 # List the Drupal multi-site folders.  Use "default" if no multi-sites are installed.
-set :domains, ["default"]
+set :domains, ['davidbarbarisi.com', '5millionthings.com']
 
 # List folders that reside outside of SVN
 set :static_dirs, ["files"]
