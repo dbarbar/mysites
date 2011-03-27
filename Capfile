@@ -21,9 +21,9 @@ namespace :deploy do
   desc "Prepares one or more servers for deployment."
   task :setup, :except => { :no_release => true } do
     dirs = [deploy_to, releases_path, shared_path]
-    # domains.each do |domain|
-    #   dirs += [shared_path + "/#{domain}/shared"]
-    # end
+    domains.each do |domain|
+      dirs += [shared_path + "/#{domain}/shared"]
+    end
     dirs += static_dirs.map { |d| File.join(shared_path, d) }
     run "umask 02 && mkdir -p #{dirs.join(' ')}"
   end
@@ -41,7 +41,7 @@ namespace :deploy do
   task :post_update_code do
     domains.each do |domain|
       # link settings file
-      # run "ln -nfs #{deploy_to}/#{shared_dir}/#{domain}/local_settings.php #{release_path}/sites/#{domain}/local_settings.php"
+      run "ln -nfs #{deploy_to}/#{shared_dir}/#{domain}/settings.php #{release_path}/sites/#{domain}/settings.php"
       # remove any link or directory that was exported from SCM, and link to remote Drupal filesystem
       static_dirs.each do |dir|
         run "rm -rf #{release_path}/#{dir}"
@@ -106,7 +106,7 @@ namespace :deploy do
   end
 
   task :restart do
-    sudo "/etc/init.d/httpd graceful"
+    sudo "/sbin/apachectl graceful"
   end
 
 end
