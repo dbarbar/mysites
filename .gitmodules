@@ -91,3 +91,21 @@
 [submodule "sites/all/modules/contrib/r4032login"]
 	path = sites/all/modules/contrib/r4032login
 	url = http://git.drupal.org/project/r4032login.git
+[submodule "sites/all/modules/contrib/omega_tools"]
+	path = sites/all/modules/contrib/omega_tools
+	url = http://git.drupal.org/project/omega_tools.git
+[submodule "sites/all/themes/contrib/beta"]
+	path = sites/all/themes/contrib/beta
+	url = http://git.drupal.org/project/beta.git
+[submodule "sites/all/themes/contrib/gamma"]
+	path = sites/all/themes/contrib/gamma
+	url = http://git.drupal.org/project/gamma.git
+[submodule "sites/all/modules/contrib/delta"]
+	path = sites/all/modules/contrib/delta
+	url = http://git.drupal.org/project/delta.git
+[submodule "sites/all/modules/contrib/git_deploy"]
+	path = sites/all/modules/contrib/git_deploy
+	url = http://git.drupal.org/project/git_deploy.git
+[submodule "sites/all/modules/contrib/ie6update"]
+	path = sites/all/modules/contrib/ie6update
+	url = http://git.drupal.org/project/ie6update.git
