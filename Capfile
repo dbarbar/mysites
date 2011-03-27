@@ -41,7 +41,7 @@ namespace :deploy do
   task :post_update_code do
     domains.each do |domain|
       # link settings file
-      run "ln -nfs #{deploy_to}/#{shared_dir}/#{domain}/settings.php #{release_path}/sites/#{domain}/settings.php"
+      run "ln -fs #{deploy_to}/#{shared_dir}/#{domain}/settings.php #{release_path}/sites/#{domain}/settings.php"
       # remove any link or directory that was exported from SCM, and link to remote Drupal filesystem
       static_dirs.each do |dir|
         run "rm -rf #{release_path}/#{dir}"
